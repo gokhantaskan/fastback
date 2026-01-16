@@ -16,6 +16,8 @@ class User(SQLModel, table=True):
     never be exposed in API responses.
     """
 
+    __tablename__: str = "users"
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     external_id: str = Field(index=True, unique=True)
     email: EmailStr = Field(index=True, unique=True, max_length=255)

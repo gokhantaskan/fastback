@@ -81,9 +81,7 @@ def test_update_me_ignores_restricted_fields(
 
 def test_update_me_unauthenticated(unauthenticated_client: TestClient):
     """Test PATCH /users/me without auth returns 401."""
-    response = unauthenticated_client.patch(
-        "/users/me", json={"first_name": "Hacker"}
-    )
+    response = unauthenticated_client.patch("/users/me", json={"first_name": "Hacker"})
 
     assert response.status_code == 401
 
@@ -179,9 +177,7 @@ def test_get_user_unauthenticated(unauthenticated_client: TestClient):
 # --- PATCH /users/{user_id} (Admin only) ---
 
 
-def test_update_user_by_admin(
-    admin_client: TestClient, session: Session
-):
+def test_update_user_by_admin(admin_client: TestClient, session: Session):
     """Test PATCH /users/{user_id} allows admin to update user."""
     # Create a target user to update
     target_user = User(

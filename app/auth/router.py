@@ -5,9 +5,8 @@ This module provides thin HTTP handlers that delegate to services
 for business logic and Firebase communication.
 """
 
-import contextlib
+import logging
 
-import httpx
 from fastapi import APIRouter, Request, Response, status
 from sqlmodel import select
 
@@ -16,27 +15,34 @@ from app.auth.exceptions import (
     EmailVerificationError,
     InvalidCredentialsError,
     SessionCookieError,
-    WeakPasswordError,
 )
 from app.auth.schemas import (
-    AuthLogin,
     AuthLogout,
     AuthMessage,
     AuthRegister,
+    ConfirmEmailChangeRequest,
     ConfirmEmailVerificationRequest,
     ConfirmPasswordResetRequest,
     EmailPasswordLoginRequest,
     EmailVerificationResponse,
     PasswordResetRequest,
     PasswordResetResponse,
+    RequestEmailChangeRequest,
+    UpdatePasswordRequest,
 )
 from app.core.constants import CommonResponses, Routes
 from app.core.deps import SessionDep, SettingsDep
-from app.core.email import send_email_verification_email, send_password_reset_email
+from app.core.email import (
+    send_email_change_verification_email,
+    send_email_verification_email,
+    send_password_reset_email,
+)
 from app.core.exceptions import AppException, BadRequestError, InternalError
 from app.user.exceptions import EmailExistsError, UserInactiveError, UserNotFoundError
 from app.user.models import User
 from app.user.schemas import UserRead
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix=Routes.AUTH.prefix,
@@ -47,7 +53,7 @@ router = APIRouter(
 
 @router.post(
     "/register",
-    response_model=UserRead,
+    response_model=AuthMessage,
     status_code=status.HTTP_201_CREATED,
     responses={**CommonResponses.CONFLICT},
 )
@@ -92,12 +98,26 @@ async def register(
         firebase_auth.delete_user(firebase_user.uid)
         raise InternalError("Failed to create user") from e
 
-    return user
+    # Send verification email (best-effort: log failures but don't fail registration)
+    try:
+        verification_link = firebase_auth.generate_email_verification_link(
+            register_data.email
+        )
+        send_email_verification_email(register_data.email, verification_link)
+    except (UserNotFoundError, EmailVerificationError, AppException, Exception) as e:
+        # Log for monitoring, but suppress to prevent failing registration
+        logger.debug(
+            "Verification email failed for newly registered user %s: %s",
+            user.id,
+            str(e),
+        )
+
+    return AuthMessage(message="User registered successfully")
 
 
 @router.post(
     "/login",
-    response_model=AuthLogin,
+    response_model=UserRead,
     responses={**CommonResponses.UNAUTHORIZED, **CommonResponses.FORBIDDEN},
 )
 async def login(
@@ -155,13 +175,7 @@ async def login(
         samesite="lax",
     )
 
-    return AuthLogin(
-        id=user.id,
-        email=user.email,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        email_verified=user.email_verified,
-    )
+    return user
 
 
 @router.post(
@@ -205,9 +219,16 @@ async def request_reset_password(
     Generates a Firebase password reset link and sends it via Resend.
     Always returns success to prevent email enumeration attacks.
     """
-    with contextlib.suppress(UserNotFoundError, AppException, Exception):
+    try:
         reset_link = firebase_auth.generate_password_reset_link(request.email)
         send_password_reset_email(request.email, reset_link)
+    except (UserNotFoundError, AppException, Exception) as e:
+        # Log for monitoring, but suppress to prevent email enumeration
+        logger.debug(
+            "Password reset request failed for email %s: %s",
+            request.email,
+            str(e),
+        )
 
     return PasswordResetResponse(
         message="If an account with that email exists, a password reset link has been sent"  # noqa: E501
@@ -217,36 +238,16 @@ async def request_reset_password(
 @router.post("/confirm-password-reset", response_model=AuthMessage)
 async def confirm_password_reset(
     request: ConfirmPasswordResetRequest,
-    settings: SettingsDep,
+    firebase_auth: FirebaseAuthDep,
 ):
     """Confirm password reset using oobCode from email link.
 
     Uses Firebase Identity Toolkit API to verify oobCode and set new password.
     """
-    if not settings.firebase_api_key:
-        raise InternalError("Firebase API key not configured")
-
-    url = f"{settings.identity_toolkit_base_url}/v1/accounts:resetPassword?key={settings.firebase_api_key}"  # noqa: E501
-    payload = {
-        "oobCode": request.oob_code,
-        "newPassword": request.new_password,
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload)
-
-    if response.status_code != 200:
-        error_data = response.json()
-        error_message = error_data.get("error", {}).get("message", "Unknown error")
-
-        if "EXPIRED_OOB_CODE" in error_message:
-            raise BadRequestError("Password reset link has expired")
-        if "INVALID_OOB_CODE" in error_message:
-            raise BadRequestError("Invalid password reset link")
-        if "WEAK_PASSWORD" in error_message:
-            raise WeakPasswordError()
-
-        raise BadRequestError("Failed to reset password")
+    await firebase_auth.confirm_password_reset(
+        oob_code=request.oob_code,
+        new_password=request.new_password,
+    )
 
     return AuthMessage(message="Password has been reset successfully")
 
@@ -278,11 +279,16 @@ async def send_verification_email(
     if user.email_verified:
         return AuthMessage(message="Email is already verified")
 
-    with contextlib.suppress(
-        UserNotFoundError, EmailVerificationError, AppException, Exception
-    ):
+    try:
         verification_link = firebase_auth.generate_email_verification_link(user.email)
         send_email_verification_email(user.email, verification_link)
+    except (UserNotFoundError, EmailVerificationError, AppException, Exception) as e:
+        # Log for monitoring, but suppress to prevent revealing internal errors
+        logger.debug(
+            "Verification email request failed for user %s: %s",
+            user.id,
+            str(e),
+        )
 
     return AuthMessage(message="Verification email sent")
 
@@ -291,42 +297,16 @@ async def send_verification_email(
 async def confirm_email_verification(
     request: ConfirmEmailVerificationRequest,
     session: SessionDep,
-    settings: SettingsDep,
+    firebase_auth: FirebaseAuthDep,
 ):
     """Confirm verification email using oobCode from email link.
 
     Uses Firebase Identity Toolkit API to verify oobCode and update email verification status.
     Updates local user's email_verified status if verification email succeeds.
     """  # noqa: E501
-    if not settings.firebase_api_key:
-        raise InternalError("Firebase API key not configured")
-
-    url = f"{settings.identity_toolkit_base_url}/v1/accounts:update?key={settings.firebase_api_key}"  # noqa: E501
-    payload = {
-        "oobCode": request.oob_code,
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload)
-
-    if response.status_code != 200:
-        error_data = response.json()
-        error_message = error_data.get("error", {}).get("message", "Unknown error")
-
-        if "EXPIRED_OOB_CODE" in error_message:
-            raise EmailVerificationError("Email verification link has expired")
-        if "INVALID_OOB_CODE" in error_message:
-            raise EmailVerificationError("Invalid email verification link")
-
-        raise EmailVerificationError("Failed to verify email")
-
-    # Get user info from response
-    data = response.json()
-    external_id = data.get("localId")
-    email_verified = data.get("emailVerified", False)
-
-    if not external_id:
-        raise InternalError("Failed to get user ID from verification response")
+    external_id, email_verified = await firebase_auth.confirm_email_verification(
+        oob_code=request.oob_code
+    )
 
     if not email_verified:
         return EmailVerificationResponse(
@@ -365,3 +345,121 @@ async def revoke_tokens(user: CurrentUserDep, firebase_auth: FirebaseAuthDep):
         raise InternalError("Failed to revoke tokens") from e
 
     return AuthMessage(message="All tokens have been revoked")
+
+
+@router.post(
+    "/update-password",
+    response_model=AuthMessage,
+    responses={**CommonResponses.UNAUTHORIZED, **CommonResponses.BAD_REQUEST},
+)
+async def update_password(
+    request: UpdatePasswordRequest,
+    user: CurrentUserDep,
+    firebase_auth: FirebaseAuthDep,
+):
+    """Update the current user's password.
+
+    Requires the user to provide their current password for verification,
+    then updates to the new password.
+    """
+    # Re-authenticate user with current password to get fresh ID token
+    try:
+        firebase_user = await firebase_auth.sign_in_with_email_password(
+            email=user.email,
+            password=request.current_password,
+        )
+    except InvalidCredentialsError:
+        raise BadRequestError("Current password is incorrect") from None
+
+    if not firebase_user.id_token:
+        raise BadRequestError("Failed to verify current password")
+
+    # Update password using the fresh ID token
+    await firebase_auth.update_password(
+        id_token=firebase_user.id_token,
+        new_password=request.new_password,
+    )
+
+    return AuthMessage(message="Password updated successfully")
+
+
+@router.post(
+    "/request-email-change",
+    response_model=AuthMessage,
+    responses={**CommonResponses.UNAUTHORIZED, **CommonResponses.CONFLICT},
+)
+async def request_email_change(
+    request: RequestEmailChangeRequest,
+    user: CurrentUserDep,
+    session: SessionDep,
+    firebase_auth: FirebaseAuthDep,
+):
+    """Request an email change for the current user.
+
+    Requires re-authentication with current password for security.
+    Sends a verification email to the new email address.
+    """
+    # Check if new email is already taken in local database
+    email_exists = session.exec(
+        select(User).where(User.email == request.new_email)
+    ).first()
+
+    if email_exists:
+        raise EmailExistsError("Email already in use")
+
+    # Re-authenticate to get a fresh ID token (same pattern as update_password)
+    try:
+        firebase_user = await firebase_auth.sign_in_with_email_password(
+            email=user.email,
+            password=request.current_password,
+        )
+    except InvalidCredentialsError:
+        raise BadRequestError("Current password is incorrect") from None
+
+    if not firebase_user.id_token:
+        raise BadRequestError("Failed to verify current password")
+
+    # Generate email change link
+    email_change_link = await firebase_auth.generate_email_change_link(
+        id_token=firebase_user.id_token,
+        current_email=user.email,
+        new_email=request.new_email,
+    )
+
+    # Send verification to CURRENT email to validate ownership
+    send_email_change_verification_email(
+        to_email=user.email,
+        new_email=request.new_email,
+        firebase_verification_link=email_change_link,
+    )
+
+    return AuthMessage(
+        message="A verification link has been sent to your current email address"
+    )
+
+
+@router.post("/confirm-email-change", response_model=AuthMessage)
+async def confirm_email_change(
+    request: ConfirmEmailChangeRequest,
+    session: SessionDep,
+    firebase_auth: FirebaseAuthDep,
+):
+    """Confirm email change using oobCode from verification email.
+
+    Uses Firebase Identity Toolkit API to verify oobCode and update email.
+    Updates local user's email after successful verification.
+    """
+    external_id, new_email = await firebase_auth.confirm_email_change(
+        oob_code=request.oob_code
+    )
+
+    # Update local user's email
+    user = session.exec(select(User).where(User.external_id == external_id)).first()
+
+    if user:
+        user.email = new_email
+        user.email_verified = True  # Email is verified since they confirmed via link
+        session.add(user)
+        session.commit()
+
+    return AuthMessage(message="Email changed successfully")

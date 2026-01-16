@@ -99,12 +99,8 @@ def test_register_new_user(session: Session):
 
     assert response.status_code == 201
     data = response.json()
-    assert data["email"] == email
-    assert (
-        "external_id" not in data
-    )  # external_id should not be exposed in API responses
-    assert data["is_active"] is True
-    assert "id" in data
+    assert "message" in data
+    assert data["message"] == "User registered successfully"
     mock_service.create_user.assert_called_once_with(email=email, password=password)
 
 
@@ -241,6 +237,58 @@ def test_register_invalid_email(session: Session):
     app.dependency_overrides.clear()
 
     assert response.status_code == 422
+
+
+def test_register_empty_first_name(session: Session):
+    """Test POST /auth/register with empty first_name returns 422."""
+    from app.auth.service import FirebaseAuthService
+
+    mock_service = MagicMock(spec=FirebaseAuthService)
+
+    app.dependency_overrides[get_session] = lambda: session
+    app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
+    client = TestClient(app)
+
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "test@example.com",
+            "password": "securepassword123",
+            "first_name": "",
+            "last_name": "User",
+        },
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+    mock_service.create_user.assert_not_called()
+
+
+def test_register_empty_last_name(session: Session):
+    """Test POST /auth/register with empty last_name returns 422."""
+    from app.auth.service import FirebaseAuthService
+
+    mock_service = MagicMock(spec=FirebaseAuthService)
+
+    app.dependency_overrides[get_session] = lambda: session
+    app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
+    client = TestClient(app)
+
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "test@example.com",
+            "password": "securepassword123",
+            "first_name": "Test",
+            "last_name": "",
+        },
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+    mock_service.create_user.assert_not_called()
 
 
 # --- POST /auth/login ---

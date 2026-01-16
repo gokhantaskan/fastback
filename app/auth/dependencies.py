@@ -54,7 +54,7 @@ def get_current_user(
         UserNotFoundError: If user not found in database
         UserInactiveError: If user is inactive
     """
-    external_id: str | None = None
+    _external_id: str | None = None
 
     # Priority 1: Session cookie authentication (web apps)
     session_cookie = request.cookies.get("session")
@@ -64,24 +64,24 @@ def get_current_user(
             claims = firebase_auth.verify_session_cookie(
                 session_cookie, check_revoked=True
             )
-            external_id = claims.uid
+            _external_id = claims.uid
         except SessionCookieError as e:
             raise InvalidTokenError() from e
 
     # Priority 2: Bearer token authentication (API clients)
-    if external_id is None and credentials is not None:
+    if _external_id is None and credentials is not None:
         try:
             claims = firebase_auth.verify_id_token(credentials.credentials)
-            external_id = claims.uid
+            _external_id = claims.uid
         except AppException as e:
             raise InvalidTokenError() from e
 
     # No valid authentication provided
-    if not external_id:
+    if not _external_id:
         raise InvalidCredentialsError("Not authenticated")
 
     # Query local user by Firebase UID
-    user = session.exec(select(User).where(User.external_id == external_id)).first()
+    user = session.exec(select(User).where(User.external_id == _external_id)).first()
 
     if user is None:
         raise UserNotFoundError()

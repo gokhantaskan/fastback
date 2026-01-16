@@ -102,3 +102,45 @@ def send_email_verification_email(
             """,  # noqa: E501
         }
     )
+
+
+def send_email_change_verification_email(
+    *, to_email: str, new_email: str, firebase_verification_link: str
+) -> None:
+    """Send email change verification email via Resend.
+
+    Args:
+        to_email: New email address (recipient)
+        firebase_verification_link: Firebase email change link (oobCode is extracted)
+    """
+    settings = get_settings()
+
+    # Email domain
+    from_email = f"noreply@{settings.app_domain}"
+
+    # Extract oobCode and build custom verification URL
+    oob_code = _extract_oob_code(firebase_verification_link)
+    verification_url = (
+        f"{settings.client_url}/auth/confirm-email-change?oobCode={oob_code}"  # noqa: E501
+    )
+
+    # DEBUG
+    print("================================================")
+    print(f"OOB Code: {oob_code}")
+    print(f"Email Change URL: {verification_url}")
+    print("================================================")
+
+    resend.Emails.send(
+        {
+            "from": from_email,
+            "to": to_email,
+            "subject": "FastBack - Confirm Email Change",
+            "html": f"""
+                <h2>Confirm Email Address Change</h2>
+                <p>You requested to change your email address to {new_email} for your FastBack account. Click the link below to confirm:</p>
+                <p><a href="{verification_url}">Confirm Email Change</a></p>
+                <p>If you didn't request this change, please secure your account immediately.</p>
+                <p>This link will expire in 1 hour.</p>
+            """,  # noqa: E501
+        }
+    )

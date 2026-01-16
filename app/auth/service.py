@@ -13,16 +13,24 @@ from datetime import timedelta
 from functools import lru_cache
 from typing import Any, Protocol
 
+import firebase_admin
 import httpx
 from firebase_admin import auth as firebase_admin_auth
 from firebase_admin.exceptions import FirebaseError
 
 from app.auth.exceptions import (
+    EmailChangeError,
+    EmailVerificationError,
     InvalidCredentialsError,
     PasswordPolicyError,
     SessionCookieError,
     UserDisabledError,
     WeakPasswordError,
+)
+from app.auth.identity_toolkit import (
+    IDENTITY_TOOLKIT_ENDPOINTS,
+    SignInWithPasswordResponse,
+    UpdateAccountResponse,
 )
 from app.core.exceptions import (
     AppException,
@@ -33,11 +41,6 @@ from app.user.exceptions import (
     EmailExistsError,
     UserNotFoundError,
 )
-
-# Constants
-_IDENTITY_TOOLKIT_ENDPOINTS = {
-    "signInWithPassword": "v1/accounts:signInWithPassword",
-}
 
 _INVALID_CREDENTIALS_MESSAGES = {
     "EMAIL_NOT_FOUND",
@@ -103,6 +106,10 @@ class FirebaseAuthServiceProtocol(Protocol):
         """Revoke all refresh tokens for a user."""
         ...
 
+    def logout(self, session_cookie: str) -> None:
+        """Logout user by revoking their refresh tokens."""
+        ...
+
     def create_user(self, email: str, password: str) -> FirebaseUser:
         """Create a new Firebase user."""
         ...
@@ -121,6 +128,28 @@ class FirebaseAuthServiceProtocol(Protocol):
 
     def get_user(self, uid: str) -> FirebaseUserRecord:
         """Get Firebase user record by UID."""
+        ...
+
+    async def update_password(self, id_token: str, new_password: str) -> None:
+        """Update user's password using ID token."""
+        ...
+
+    async def generate_email_change_link(
+        self, id_token: str, current_email: str, new_email: str
+    ) -> str:
+        """Generate an email change verification link."""
+        ...
+
+    async def confirm_password_reset(self, oob_code: str, new_password: str) -> None:
+        """Confirm password reset using oobCode from email."""
+        ...
+
+    async def confirm_email_verification(self, oob_code: str) -> tuple[str, bool]:
+        """Confirm email verification using oobCode. Returns (external_id, email_verified)."""  # noqa: E501
+        ...
+
+    async def confirm_email_change(self, oob_code: str) -> tuple[str, str]:
+        """Confirm email change using oobCode. Returns (external_id, new_email)."""
         ...
 
 
@@ -179,8 +208,67 @@ class FirebaseAuthService:
 
         return response.json()
 
+    @staticmethod
+    def _get_admin_access_token() -> str:
+        """Get access token from Firebase Admin SDK credentials.
+
+        This provides service account authentication which has elevated
+        permissions compared to API key authentication.
+
+        Returns:
+            Access token string
+
+        Raises:
+            AppException: If Firebase Admin SDK is not initialized
+        """
+        try:
+            app = firebase_admin.get_app()
+            credential = app.credential
+            access_token_info = credential.get_access_token()
+            return access_token_info.access_token
+        except ValueError as e:
+            raise AppException("Firebase Admin SDK not initialized") from e
+
+    async def _make_admin_identity_toolkit_request(
+        self, endpoint: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Make a request to Identity Toolkit REST API using Admin SDK credentials.
+
+        Uses service account authentication which has elevated permissions
+        for operations like returnOobLink.
+
+        Args:
+            endpoint: API endpoint path (e.g., "v1/accounts:sendOobCode")
+            payload: Request payload
+
+        Returns:
+            Response JSON data
+
+        Raises:
+            InvalidCredentialsError: If authentication fails
+            ProviderError: If upstream returns unexpected response
+        """
+        access_token = self._get_admin_access_token()
+        url = f"{self._identity_toolkit_base_url}/{endpoint}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json=payload,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+
+        if response.status_code != 200:
+            self._handle_identity_toolkit_error(response)
+
+        return response.json()
+
     def _handle_identity_toolkit_error(self, response: httpx.Response) -> None:
         """Handle error response from Identity Toolkit REST API."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         try:
             error_data = response.json()
             error_message = error_data.get("error", {}).get("message", "Unknown error")
@@ -188,6 +276,13 @@ class FirebaseAuthService:
             raise ProviderError(
                 "Authentication provider returned an invalid response"
             ) from e
+
+        # Log Firebase error for debugging
+        logger.info(
+            "Identity Toolkit error: status=%s, message=%s",
+            response.status_code,
+            error_message,
+        )
 
         if error_message in _INVALID_CREDENTIALS_MESSAGES:
             raise InvalidCredentialsError("Invalid email or password")
@@ -197,6 +292,36 @@ class FirebaseAuthService:
 
         if error_message == "TOO_MANY_ATTEMPTS_TRY_LATER":
             raise RateLimitError("Too many attempts, try again later")
+
+        if "WEAK_PASSWORD" in error_message:
+            raise WeakPasswordError("Password is too weak")
+
+        if "PASSWORD_DOES_NOT_MEET_REQUIREMENTS" in error_message:
+            requirements = self._extract_password_requirements(error_message)
+            raise PasswordPolicyError(
+                "Password does not meet requirements",
+                requirements=requirements,
+            )
+
+        if "CREDENTIAL_TOO_OLD_LOGIN_AGAIN" in error_message:
+            raise InvalidCredentialsError(
+                "Session expired, please login again to continue"
+            )
+
+        if "TOKEN_EXPIRED" in error_message or "INVALID_ID_TOKEN" in error_message:
+            raise InvalidCredentialsError("Session expired, please login again")
+
+        if "EMAIL_EXISTS" in error_message:
+            from app.user.exceptions import EmailExistsError
+
+            raise EmailExistsError("Email already in use")
+
+        # OOB code errors (password reset, email verification, email change)
+        if "EXPIRED_OOB_CODE" in error_message:
+            raise ProviderError("EXPIRED_OOB_CODE")
+
+        if "INVALID_OOB_CODE" in error_message:
+            raise ProviderError("INVALID_OOB_CODE")
 
         if response.status_code in {400, 401, 403}:
             raise InvalidCredentialsError("Authentication failed")
@@ -221,9 +346,9 @@ class FirebaseAuthService:
             RateLimitError: If rate limit exceeded
             ProviderError: If upstream returns unexpected response
         """
-        # https://docs.cloud.google.com/identity-platform/docs/reference/rest/v1/accounts/signInWithPassword
-        data = await self._make_identity_toolkit_request(
-            endpoint=_IDENTITY_TOOLKIT_ENDPOINTS["signInWithPassword"],
+        # https://cloud.google.com/identity-platform/docs/reference/rest/v1/accounts/signInWithPassword
+        data: SignInWithPasswordResponse = await self._make_identity_toolkit_request(
+            endpoint=IDENTITY_TOOLKIT_ENDPOINTS["signInWithPassword"],
             payload={
                 "email": email,
                 "password": password,
@@ -339,6 +464,24 @@ class FirebaseAuthService:
         """
         with contextlib.suppress(FirebaseError):
             firebase_admin_auth.revoke_refresh_tokens(uid)
+
+    def logout(self, session_cookie: str) -> None:
+        """Logout user by revoking their refresh tokens.
+
+        Args:
+            session_cookie: The session cookie to invalidate
+
+        Note:
+            This method verifies the session cookie and revokes all refresh tokens.
+            Cookie clearing should be handled at the router level.
+            Silently succeeds if cookie is invalid (user already logged out).
+        """
+        try:
+            claims = self.verify_session_cookie(session_cookie, check_revoked=False)
+            self.revoke_refresh_tokens(claims.uid)
+        except SessionCookieError:
+            # Invalid cookie - user is effectively logged out already
+            pass
 
     def delete_user(self, uid: str) -> None:
         """Delete a Firebase user (best-effort, errors suppressed).
@@ -541,6 +684,172 @@ class FirebaseAuthService:
                 default_error=AppException,
                 default_message="Failed to get user",
             )
+
+    async def update_password(self, id_token: str, new_password: str) -> None:
+        """Update user's password using Identity Toolkit.
+
+        Args:
+            id_token: Firebase ID token for the authenticated user
+            new_password: The new password to set
+
+        Raises:
+            WeakPasswordError: If password doesn't meet requirements
+            PasswordPolicyError: If password doesn't meet policy requirements
+            InvalidCredentialsError: If token is invalid
+            ProviderError: If upstream returns unexpected response
+        """
+        data: UpdateAccountResponse = await self._make_identity_toolkit_request(
+            endpoint=IDENTITY_TOOLKIT_ENDPOINTS["update"],
+            payload={
+                "idToken": id_token,
+                "password": new_password,
+                "returnSecureToken": True,
+            },
+        )
+
+        if not data.get("localId"):
+            raise ProviderError("Failed to update password")
+
+    async def generate_email_change_link(
+        self, id_token: str, current_email: str, new_email: str
+    ) -> str:
+        """Generate an email change verification link.
+
+        Uses sendOobCode with VERIFY_AND_CHANGE_EMAIL request type.
+        Uses Admin SDK credentials for elevated permissions required by returnOobLink.
+
+        Args:
+            id_token: Firebase ID token for the authenticated user
+            current_email: The user's current email address
+            new_email: The new email address to change to
+
+        Returns:
+            Email change verification URL string
+
+        Raises:
+            InvalidCredentialsError: If token is invalid
+            ProviderError: If upstream returns unexpected response
+        """
+        data = await self._make_admin_identity_toolkit_request(
+            endpoint=IDENTITY_TOOLKIT_ENDPOINTS["sendOobCode"],
+            payload={
+                "requestType": "VERIFY_AND_CHANGE_EMAIL",
+                "idToken": id_token,
+                "email": current_email,
+                "newEmail": new_email,
+                "returnOobLink": True,
+            },
+        )
+
+        oob_link = data.get("oobLink")
+        if not oob_link:
+            raise ProviderError("Failed to generate email change link")
+
+        return oob_link
+
+    async def confirm_password_reset(self, oob_code: str, new_password: str) -> None:
+        """Confirm password reset using oobCode from email.
+
+        Args:
+            oob_code: Out-of-band code from password reset email
+            new_password: The new password to set
+
+        Raises:
+            BadRequestError: If oobCode is expired or invalid
+            WeakPasswordError: If password doesn't meet requirements
+            ProviderError: If upstream returns unexpected response
+        """
+        from app.core.exceptions import BadRequestError
+
+        try:
+            await self._make_identity_toolkit_request(
+                endpoint=IDENTITY_TOOLKIT_ENDPOINTS["resetPassword"],
+                payload={
+                    "oobCode": oob_code,
+                    "newPassword": new_password,
+                },
+            )
+        except ProviderError as e:
+            error_str = str(e)
+            if "EXPIRED_OOB_CODE" in error_str:
+                raise BadRequestError("Password reset link has expired") from e
+            if "INVALID_OOB_CODE" in error_str:
+                raise BadRequestError("Invalid password reset link") from e
+            raise
+
+    async def confirm_email_verification(self, oob_code: str) -> tuple[str, bool]:
+        """Confirm email verification using oobCode from email.
+
+        Args:
+            oob_code: Out-of-band code from verification email
+
+        Returns:
+            Tuple of (external_id, email_verified)
+
+        Raises:
+            EmailVerificationError: If oobCode is expired, invalid, or fails
+            InternalError: If response is missing required fields
+        """
+        from app.core.exceptions import InternalError
+
+        try:
+            data: UpdateAccountResponse = await self._make_identity_toolkit_request(
+                endpoint=IDENTITY_TOOLKIT_ENDPOINTS["update"],
+                payload={"oobCode": oob_code},
+            )
+        except ProviderError as e:
+            error_str = str(e)
+            if "EXPIRED_OOB_CODE" in error_str:
+                raise EmailVerificationError(
+                    "Email verification link has expired"
+                ) from e
+            if "INVALID_OOB_CODE" in error_str:
+                raise EmailVerificationError("Invalid email verification link") from e
+            raise EmailVerificationError("Failed to verify email") from e
+
+        external_id = data.get("localId")
+        email_verified = data.get("emailVerified", False)
+
+        if not external_id:
+            raise InternalError("Failed to get user ID from verification response")
+
+        return external_id, email_verified
+
+    async def confirm_email_change(self, oob_code: str) -> tuple[str, str]:
+        """Confirm email change using oobCode from verification email.
+
+        Args:
+            oob_code: Out-of-band code from email change verification email
+
+        Returns:
+            Tuple of (external_id, new_email)
+
+        Raises:
+            EmailChangeError: If oobCode is expired, invalid, or change fails
+            InternalError: If response is missing required fields
+        """
+        from app.core.exceptions import InternalError
+
+        try:
+            data: UpdateAccountResponse = await self._make_identity_toolkit_request(
+                endpoint=IDENTITY_TOOLKIT_ENDPOINTS["update"],
+                payload={"oobCode": oob_code},
+            )
+        except ProviderError as e:
+            error_str = str(e)
+            if "EXPIRED_OOB_CODE" in error_str:
+                raise EmailChangeError("Email change link has expired") from e
+            if "INVALID_OOB_CODE" in error_str:
+                raise EmailChangeError("Invalid email change link") from e
+            raise EmailChangeError("Failed to change email") from e
+
+        external_id = data.get("localId")
+        new_email = data.get("email")
+
+        if not external_id or not new_email:
+            raise InternalError("Failed to get user info from email change response")
+
+        return external_id, new_email
 
 
 @lru_cache

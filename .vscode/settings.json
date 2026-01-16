@@ -1,3 +1,7 @@
 {
-  "kiroAgent.configureMCP": "Disabled"
+  "ruff.configuration": "./ruff.toml",
+  "ruff.configurationPreference": "filesystemFirst",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  }
 }

@@ -11,3 +11,4 @@ class ErrorResponse(BaseModel):
 
     type: str
     message: str
+    errors: dict[str, str | list[str]] | None = None

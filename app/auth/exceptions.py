@@ -115,3 +115,12 @@ class EmailVerificationError(ValidationError):
 
     def __init__(self, message: str = "Email verification failed"):
         super().__init__(message)
+
+
+class EmailChangeError(ValidationError):
+    """Raised when email change operations fail."""
+
+    error_type = "email_change_error"
+
+    def __init__(self, message: str = "Email change failed"):
+        super().__init__(message)
