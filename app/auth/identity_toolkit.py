@@ -1,12 +1,14 @@
 from typing import Literal, NotRequired, TypedDict
 
 # Constants
-IDENTITY_TOOLKIT_ENDPOINTS: dict[str, str] = {
+IDENTITY_TOOLKIT_ENDPOINT_PATHS: dict[str, str] = {
     "signInWithPassword": "v1/accounts:signInWithPassword",
     "sendOobCode": "v1/accounts:sendOobCode",
     "update": "v1/accounts:update",
     "resetPassword": "v1/accounts:resetPassword",
 }
+# Backward-compatible alias for existing code
+IDENTITY_TOOLKIT_ENDPOINTS = IDENTITY_TOOLKIT_ENDPOINT_PATHS
 
 
 # Request schemas
