@@ -1,3 +1,8 @@
+"""Auth domain schemas.
+
+Request and response schemas for authentication operations.
+"""
+
 import uuid
 
 from pydantic import BaseModel, EmailStr

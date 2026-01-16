@@ -9,4 +9,4 @@ IMPORTANT (Alembic / SQLModel):
 """
 
 # Import table models so SQLModel registers them in metadata.
-from app.models.user import User  # noqa: F401
+from app.user.models import User  # noqa: F401

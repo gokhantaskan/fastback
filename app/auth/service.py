@@ -11,27 +11,27 @@ import re
 from dataclasses import dataclass
 from datetime import timedelta
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 import httpx
 from firebase_admin import auth as firebase_admin_auth
 from firebase_admin.exceptions import FirebaseError
 
-if TYPE_CHECKING:
-    from app.core.settings import Settings
-
-from app.core.exceptions import (
-    AppException,
-    EmailExistsError,
-    EmailVerificationError,
+from app.auth.exceptions import (
     InvalidCredentialsError,
     PasswordPolicyError,
-    ProviderError,
-    RateLimitError,
     SessionCookieError,
     UserDisabledError,
-    UserNotFoundError,
     WeakPasswordError,
+)
+from app.core.exceptions import (
+    AppException,
+    ProviderError,
+    RateLimitError,
+)
+from app.user.exceptions import (
+    EmailExistsError,
+    UserNotFoundError,
 )
 
 # Constants
@@ -497,6 +497,8 @@ class FirebaseAuthService:
             UserNotFoundError: If email not found in Firebase
             EmailVerificationError: For other verification errors
         """
+        from app.auth.exceptions import EmailVerificationError
+
         try:
             link = firebase_admin_auth.generate_email_verification_link(email)
             return link
@@ -548,7 +550,7 @@ def get_firebase_auth_service() -> FirebaseAuthService:
     The service is cached for the application lifetime since
     its configuration doesn't change at runtime.
     """
-    from app.core.settings import get_settings
+    from app.core.settings import Settings, get_settings
 
     settings: Settings = get_settings()
     return FirebaseAuthService(

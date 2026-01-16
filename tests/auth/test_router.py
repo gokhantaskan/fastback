@@ -1,27 +1,26 @@
-"""Tests for authentication routes."""
+"""Tests for auth domain router."""
 
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.core.exceptions import (
+from app.auth.exceptions import (
     InvalidCredentialsError,
-    ProviderError,
-    RateLimitError,
     SessionCookieError,
     UserDisabledError,
 )
-from app.core.settings import Settings, get_settings
-from app.db.engine import get_session
-from app.main import app
-from app.models.user import User
-from app.services.firebase_auth import (
+from app.auth.service import (
     FirebaseAuthService,
     FirebaseUser,
     TokenClaims,
     get_firebase_auth_service,
 )
+from app.core.exceptions import ProviderError, RateLimitError
+from app.core.settings import Settings, get_settings
+from app.db.engine import get_session
+from app.main import app
+from app.user.models import User
 
 # --- Helper fixtures ---
 
@@ -73,14 +72,14 @@ def create_mock_settings(
 
 def test_register_new_user(session: Session):
     """Test POST /auth/register creates a new user."""
-    from app.services.firebase_auth import FirebaseAuthService, FirebaseUser
+    from app.auth.service import FirebaseAuthService, FirebaseUser
 
-    firebase_uid = "new-firebase-uid-123"
+    external_id = "new-firebase-uid-123"
     email = "newuser@example.com"
     password = "securepassword123"
 
     mock_service = MagicMock(spec=FirebaseAuthService)
-    mock_service.create_user.return_value = FirebaseUser(uid=firebase_uid, email=email)
+    mock_service.create_user.return_value = FirebaseUser(uid=external_id, email=email)
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
@@ -102,8 +101,8 @@ def test_register_new_user(session: Session):
     data = response.json()
     assert data["email"] == email
     assert (
-        "firebase_uid" not in data
-    )  # firebase_uid should not be exposed in API responses
+        "external_id" not in data
+    )  # external_id should not be exposed in API responses
     assert data["is_active"] is True
     assert "id" in data
     mock_service.create_user.assert_called_once_with(email=email, password=password)
@@ -132,8 +131,8 @@ def test_register_duplicate_email_local(session: Session, test_user: User):
 
 def test_register_duplicate_email_firebase(session: Session):
     """Test POST /auth/register with existing email in Firebase returns 409."""
-    from app.core.exceptions import EmailExistsError
-    from app.services.firebase_auth import FirebaseAuthService
+    from app.auth.service import FirebaseAuthService
+    from app.user.exceptions import EmailExistsError
 
     mock_service = MagicMock(spec=FirebaseAuthService)
     mock_service.create_user.side_effect = EmailExistsError("Email already registered")
@@ -160,8 +159,8 @@ def test_register_duplicate_email_firebase(session: Session):
 
 def test_register_weak_password(session: Session):
     """Test POST /auth/register with weak password returns 400."""
-    from app.core.exceptions import WeakPasswordError
-    from app.services.firebase_auth import FirebaseAuthService
+    from app.auth.exceptions import WeakPasswordError
+    from app.auth.service import FirebaseAuthService
 
     mock_service = MagicMock(spec=FirebaseAuthService)
     mock_service.create_user.side_effect = WeakPasswordError("Password is too weak")
@@ -188,8 +187,8 @@ def test_register_weak_password(session: Session):
 
 def test_register_firebase_error(session: Session):
     """Test POST /auth/register handles generic Firebase errors with 500."""
+    from app.auth.service import FirebaseAuthService
     from app.core.exceptions import AppException
-    from app.services.firebase_auth import FirebaseAuthService
 
     mock_service = MagicMock(spec=FirebaseAuthService)
     mock_service.create_user.side_effect = AppException("Unknown error")
@@ -251,7 +250,7 @@ def test_login_existing_user(session: Session, test_user: User):
     """Test POST /auth/login with existing user returns user info."""
     mock_service = create_mock_firebase_service(
         sign_in_result=FirebaseUser(
-            uid=test_user.firebase_uid,
+            uid=test_user.external_id,
             email=test_user.email,
             id_token="mock-id-token",
         )
@@ -278,12 +277,12 @@ def test_login_existing_user(session: Session, test_user: User):
 
 def test_login_auto_register_new_user(session: Session):
     """Test POST /auth/login auto-registers new users."""
-    firebase_uid = "auto-register-uid"
+    external_id = "auto-register-uid"
     email = "autoregister@example.com"
 
     mock_service = create_mock_firebase_service(
         sign_in_result=FirebaseUser(
-            uid=firebase_uid,
+            uid=external_id,
             email=email,
             id_token="mock-id-token",
         )
@@ -310,7 +309,7 @@ def test_login_inactive_user(session: Session, inactive_user: User):
     """Test POST /auth/login with inactive user returns 403."""
     mock_service = create_mock_firebase_service(
         sign_in_result=FirebaseUser(
-            uid=inactive_user.firebase_uid,
+            uid=inactive_user.external_id,
             email=inactive_user.email,
             id_token="mock-id-token",
         )
@@ -446,7 +445,7 @@ def test_login_session_cookie_error(session: Session, test_user: User):
     """Test POST /auth/login handles session cookie creation failure."""
     mock_service = create_mock_firebase_service(
         sign_in_result=FirebaseUser(
-            uid=test_user.firebase_uid,
+            uid=test_user.external_id,
             email=test_user.email,
             id_token="mock-id-token",
         )
@@ -500,12 +499,12 @@ def test_logout_unauthenticated(unauthenticated_client: TestClient):
 
 def test_reset_password(session: Session):
     """Test POST /auth/request-password-reset returns success message."""
-    from app.services.firebase_auth import FirebaseAuthService
+    from app.auth.service import FirebaseAuthService
 
     mock_service = MagicMock(spec=FirebaseAuthService)
     mock_service.generate_password_reset_link.return_value = "https://example.com/reset"
 
-    with patch("app.api.routes.auth.send_password_reset_email") as mock_send:
+    with patch("app.auth.router.send_password_reset_email") as mock_send:
         mock_send.return_value = None
 
         app.dependency_overrides[get_session] = lambda: session
@@ -526,7 +525,8 @@ def test_reset_password(session: Session):
 
 def test_reset_password_nonexistent_email(session: Session):
     """Test POST /auth/request-password-reset with nonexistent email still returns success."""  # noqa: E501
-    from app.services.firebase_auth import FirebaseAuthService, UserNotFoundError
+    from app.auth.service import FirebaseAuthService
+    from app.user.exceptions import UserNotFoundError
 
     mock_service = MagicMock(spec=FirebaseAuthService)
     mock_service.generate_password_reset_link.side_effect = UserNotFoundError(
@@ -574,7 +574,7 @@ def test_confirm_password_reset(session: Session):
     mock_response.status_code = 200
     mock_response.json.return_value = {"email": "test@example.com"}
 
-    with patch("app.api.routes.auth.httpx.AsyncClient") as mock_client:
+    with patch("app.auth.router.httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
             return_value=mock_response
@@ -603,7 +603,7 @@ def test_confirm_password_reset_expired_code(session: Session):
     mock_response.status_code = 400
     mock_response.json.return_value = {"error": {"message": "EXPIRED_OOB_CODE"}}
 
-    with patch("app.api.routes.auth.httpx.AsyncClient") as mock_client:
+    with patch("app.auth.router.httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
             return_value=mock_response
@@ -632,7 +632,7 @@ def test_confirm_password_reset_invalid_code(session: Session):
     mock_response.status_code = 400
     mock_response.json.return_value = {"error": {"message": "INVALID_OOB_CODE"}}
 
-    with patch("app.api.routes.auth.httpx.AsyncClient") as mock_client:
+    with patch("app.auth.router.httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
             return_value=mock_response
@@ -661,7 +661,7 @@ def test_confirm_password_reset_weak_password(session: Session):
     mock_response.status_code = 400
     mock_response.json.return_value = {"error": {"message": "WEAK_PASSWORD"}}
 
-    with patch("app.api.routes.auth.httpx.AsyncClient") as mock_client:
+    with patch("app.auth.router.httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
             return_value=mock_response
@@ -711,7 +711,7 @@ def test_confirm_password_reset_generic_error(session: Session):
     mock_response.status_code = 400
     mock_response.json.return_value = {"error": {"message": "SOME_OTHER_ERROR"}}
 
-    with patch("app.api.routes.auth.httpx.AsyncClient") as mock_client:
+    with patch("app.auth.router.httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         mock_client.return_value.__aenter__.return_value.post = AsyncMock(
             return_value=mock_response
@@ -764,7 +764,7 @@ def test_revoke_tokens(
     assert response.status_code == 200
     assert response.json()["message"] == "All tokens have been revoked"
     mock_firebase_auth.revoke_refresh_tokens.assert_called_once_with(
-        test_user.firebase_uid
+        test_user.external_id
     )
 
 

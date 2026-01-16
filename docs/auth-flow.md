@@ -22,7 +22,7 @@ sequenceDiagram
     Client->>Backend: Request with session cookie
     Backend->>Firebase: verify_session_cookie(cookie)
     Firebase-->>Backend: Claims (uid)
-    Backend->>Database: Query user by firebase_uid
+    Backend->>Database: Query user by external_id
     Database-->>Backend: User record
     Backend-->>Client: Response
 
@@ -30,7 +30,7 @@ sequenceDiagram
     Client->>Backend: Request + Bearer Token
     Backend->>Firebase: verify_id_token(token)
     Firebase-->>Backend: Claims (uid)
-    Backend->>Database: Query user by firebase_uid
+    Backend->>Database: Query user by external_id
     Database-->>Backend: User record
     Backend-->>Client: Response
 ```
@@ -93,7 +93,7 @@ sequenceDiagram
         Backend->>Firebase: create_session_cookie(idToken)
         Firebase-->>Backend: Session cookie
 
-        Backend->>Database: Query user by firebase_uid
+        Backend->>Database: Query user by external_id
         alt User exists
             alt User active
                 Backend-->>Client: 200 OK + AuthLogin<br/>Set-Cookie: session
@@ -148,18 +148,18 @@ sequenceDiagram
         alt Invalid/revoked cookie
             Backend-->>Client: 401 Unauthorized
         else Valid cookie
-            Note over Backend: Extract firebase_uid from claims
+            Note over Backend: Extract external_id from claims
         end
     else Bearer token present (Priority 2)
         Backend->>Firebase: verify_id_token(token)
         alt Invalid token
             Backend-->>Client: 401 Unauthorized
         else Valid token
-            Note over Backend: Extract firebase_uid from claims
+            Note over Backend: Extract external_id from claims
         end
     end
 
-    Backend->>Database: Query user by firebase_uid
+    Backend->>Database: Query user by external_id
     alt User not found
         Backend-->>Client: 404 Not Found
     else User inactive

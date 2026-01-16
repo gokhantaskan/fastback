@@ -1,5 +1,6 @@
-"""Authentication routes for user registration, login, logout, and password management.
+"""Auth domain router.
 
+Authentication routes for user registration, login, logout, and password management.
 This module provides thin HTTP handlers that delegate to services
 for business logic and Firebase communication.
 """
@@ -10,22 +11,14 @@ import httpx
 from fastapi import APIRouter, Request, Response, status
 from sqlmodel import select
 
-from app.core.constants import CommonResponses, Routes
-from app.core.deps import CurrentUserDep, FirebaseAuthDep, SessionDep, SettingsDep
-from app.core.email import send_email_verification_email, send_password_reset_email
-from app.core.exceptions import (
-    AppException,
-    BadRequestError,
-    EmailExistsError,
+from app.auth.dependencies import CurrentUserDep, FirebaseAuthDep
+from app.auth.exceptions import (
     EmailVerificationError,
-    InternalError,
     InvalidCredentialsError,
     SessionCookieError,
-    UserInactiveError,
-    UserNotFoundError,
     WeakPasswordError,
 )
-from app.models.auth_schemas import (
+from app.auth.schemas import (
     AuthLogin,
     AuthLogout,
     AuthMessage,
@@ -37,7 +30,13 @@ from app.models.auth_schemas import (
     PasswordResetRequest,
     PasswordResetResponse,
 )
-from app.models.user import User, UserRead
+from app.core.constants import CommonResponses, Routes
+from app.core.deps import SessionDep, SettingsDep
+from app.core.email import send_email_verification_email, send_password_reset_email
+from app.core.exceptions import AppException, BadRequestError, InternalError
+from app.user.exceptions import EmailExistsError, UserInactiveError, UserNotFoundError
+from app.user.models import User
+from app.user.schemas import UserRead
 
 router = APIRouter(
     prefix=Routes.AUTH.prefix,
@@ -78,7 +77,7 @@ async def register(
 
     # Create local user
     user = User(
-        firebase_uid=firebase_user.uid,
+        external_id=firebase_user.uid,
         email=register_data.email,
         first_name=register_data.first_name,
         last_name=register_data.last_name,
@@ -127,7 +126,7 @@ async def login(
 
     # Query or create local user
     user = session.exec(
-        select(User).where(User.firebase_uid == firebase_user.uid)
+        select(User).where(User.external_id == firebase_user.uid)
     ).first()
 
     if user is None:
@@ -135,7 +134,7 @@ async def login(
             raise BadRequestError("Email not found in Firebase token")
 
         user = User(
-            firebase_uid=firebase_user.uid,
+            external_id=firebase_user.uid,
             email=firebase_user.email,
             is_active=True,
         )
@@ -323,10 +322,10 @@ async def confirm_email_verification(
 
     # Get user info from response
     data = response.json()
-    firebase_uid = data.get("localId")
+    external_id = data.get("localId")
     email_verified = data.get("emailVerified", False)
 
-    if not firebase_uid:
+    if not external_id:
         raise InternalError("Failed to get user ID from verification response")
 
     if not email_verified:
@@ -336,7 +335,7 @@ async def confirm_email_verification(
         )
 
     # Update local user's email_verified status
-    user = session.exec(select(User).where(User.firebase_uid == firebase_uid)).first()
+    user = session.exec(select(User).where(User.external_id == external_id)).first()
 
     if user:
         user.email_verified = True
@@ -361,7 +360,7 @@ async def revoke_tokens(user: CurrentUserDep, firebase_auth: FirebaseAuthDep):
     This will sign out the user from all devices.
     """
     try:
-        firebase_auth.revoke_refresh_tokens(user.firebase_uid)
+        firebase_auth.revoke_refresh_tokens(user.external_id)
     except Exception as e:
         raise InternalError("Failed to revoke tokens") from e
 

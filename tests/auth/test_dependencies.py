@@ -1,22 +1,18 @@
-"""Tests for app/core/auth.py - get_current_user dependency."""
+"""Tests for app/auth/dependencies.py - get_current_user dependency."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.auth import get_current_user
-from app.core.exceptions import (
-    AppException,
+from app.auth.dependencies import get_current_user
+from app.auth.exceptions import (
     InvalidCredentialsError,
     InvalidTokenError,
     SessionCookieError,
-    UserInactiveError,
-    UserNotFoundError,
 )
-from app.services.firebase_auth import (
-    FirebaseAuthService,
-    TokenClaims,
-)
+from app.auth.service import FirebaseAuthService, TokenClaims
+from app.core.exceptions import AppException
+from app.user.exceptions import UserInactiveError, UserNotFoundError
 
 
 def create_mock_firebase_service():
@@ -32,7 +28,7 @@ def test_get_current_user_valid_bearer_token(session, test_user):
     mock_request.cookies = {}
 
     mock_service = create_mock_firebase_service()
-    mock_service.verify_id_token.return_value = TokenClaims(uid=test_user.firebase_uid)
+    mock_service.verify_id_token.return_value = TokenClaims(uid=test_user.external_id)
 
     result = get_current_user(mock_request, session, mock_service, mock_credentials)
 
@@ -82,7 +78,7 @@ def test_get_current_user_inactive(session, inactive_user):
 
     mock_service = create_mock_firebase_service()
     mock_service.verify_id_token.return_value = TokenClaims(
-        uid=inactive_user.firebase_uid
+        uid=inactive_user.external_id
     )
 
     with pytest.raises(UserInactiveError) as exc_info:
@@ -98,7 +94,7 @@ def test_get_current_user_session_cookie_valid(session, test_user):
 
     mock_service = create_mock_firebase_service()
     mock_service.verify_session_cookie.return_value = TokenClaims(
-        uid=test_user.firebase_uid
+        uid=test_user.external_id
     )
 
     result = get_current_user(mock_request, session, mock_service, None)
@@ -149,7 +145,7 @@ def test_get_current_user_session_cookie_priority_over_bearer(session, test_user
 
     mock_service = create_mock_firebase_service()
     mock_service.verify_session_cookie.return_value = TokenClaims(
-        uid=test_user.firebase_uid
+        uid=test_user.external_id
     )
 
     result = get_current_user(mock_request, session, mock_service, mock_credentials)
