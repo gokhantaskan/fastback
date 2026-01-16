@@ -174,9 +174,7 @@ class FirebaseAuthService:
     def _ensure_api_key(self) -> str:
         """Ensure API key is configured."""
         if not self._api_key:
-            raise AppException(
-                "Firebase API key not configured", code="MISSING_API_KEY"
-            )
+            raise AppException("Firebase API key not configured")
         return self._api_key
 
     async def _make_identity_toolkit_request(
