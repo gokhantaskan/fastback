@@ -1,0 +1,27 @@
+.hypothesis/
+
+# Local DB
+app.db
+
+# Python
+.venv
+__pycache__
+.ruff_cache
+*.pyc
+*.pyo
+
+# Testing
+.pytest_cache/
+.coverage/
+htmlcov/
+coverage.json
+
+# Firebase Service
+service-account.json
+
+# Environment variables
+.env*
+!.env.example
+
+# macOS
+.DS_Store
