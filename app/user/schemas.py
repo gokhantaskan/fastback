@@ -15,18 +15,26 @@ from sqlmodel import SQLModel
 
 
 class UserBase(SQLModel):
-    """Base user properties safe for API responses.
+    """Base user properties safe for all API responses.
 
     This class should ONLY contain fields that are safe to expose
-    to end users. Never add internal fields like external_id here.
+    to any user. Never add internal fields like external_id here.
     """
 
     email: EmailStr
     email_verified: bool
     first_name: str | None
     last_name: str | None
-    is_active: bool
-    is_admin: bool
+
+
+class UserPublicRead(UserBase):
+    """Response schema for public/self user data.
+
+    Used for non-admin contexts like /me endpoints.
+    Does not expose privilege levels or account status.
+    """
+
+    id: uuid.UUID
 
 
 class UserCreate(SQLModel):
@@ -43,14 +51,15 @@ class UserCreate(SQLModel):
     last_name: str = ""
 
 
-class UserRead(UserBase):
-    """Response schema for user data.
+class UserRead(UserPublicRead):
+    """Full response schema for admin contexts.
 
-    Inherits safe fields from UserBase and adds id.
-    external_id is intentionally excluded.
+    Extends UserPublicRead with sensitive fields like account status
+    and privilege level. Use only for admin-protected endpoints.
     """
 
-    id: uuid.UUID
+    is_active: bool
+    is_admin: bool
 
 
 class UserUpdateMe(SQLModel):

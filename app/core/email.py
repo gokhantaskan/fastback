@@ -110,7 +110,8 @@ def send_email_change_verification_email(
     """Send email change verification email via Resend.
 
     Args:
-        to_email: New email address (recipient)
+        to_email: Current email address on file (recipient for security verification)
+        new_email: Requested new email address
         firebase_verification_link: Firebase email change link (oobCode is extracted)
     """
     settings = get_settings()

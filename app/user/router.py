@@ -6,14 +6,14 @@ User management routes for CRUD operations.
 import uuid
 
 from fastapi import APIRouter, Depends, status
-from sqlmodel import select
+from sqlmodel import and_, select
 
 from app.auth.dependencies import CurrentUserDep, require_admin, require_auth
 from app.core.constants import CommonResponses, Routes
 from app.core.deps import SessionDep
-from app.user.exceptions import UserNotFoundError
+from app.user.exceptions import EmailExistsError, UserNotFoundError
 from app.user.models import User
-from app.user.schemas import UserRead, UserUpdate, UserUpdateMe
+from app.user.schemas import UserPublicRead, UserRead, UserUpdate, UserUpdateMe
 
 router = APIRouter(
     prefix=Routes.USER.prefix,
@@ -26,7 +26,7 @@ router = APIRouter(
 )
 
 
-@router.patch("/me", response_model=UserRead)
+@router.patch("/me", response_model=UserPublicRead)
 async def update_me(
     user: CurrentUserDep, user_update: UserUpdateMe, session: SessionDep
 ):
@@ -76,7 +76,7 @@ async def get_user(user_id: uuid.UUID, session: SessionDep):
     "/{user_id}",
     response_model=UserRead,
     dependencies=[Depends(require_admin)],
-    responses={**CommonResponses.NOT_FOUND},
+    responses={**CommonResponses.NOT_FOUND, **CommonResponses.CONFLICT},
 )
 async def update_user(user_id: uuid.UUID, user_update: UserUpdate, session: SessionDep):
     """Update a user by ID. Admin only.
@@ -89,6 +89,16 @@ async def update_user(user_id: uuid.UUID, user_update: UserUpdate, session: Sess
         raise UserNotFoundError()
 
     update_data = user_update.model_dump(exclude_unset=True)
+
+    # Check if new email is already taken by another user
+    if "email" in update_data and update_data["email"] != user.email:
+        email_exists = session.exec(
+            select(User).where(
+                and_(User.email == update_data["email"], User.id != user_id)
+            )
+        ).first()
+        if email_exists:
+            raise EmailExistsError("Email already in use")
     for key, value in update_data.items():
         setattr(user, key, value)
 
