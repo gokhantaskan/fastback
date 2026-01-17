@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Confirm Email Address Change</h2>
+<p>You requested to change your email address to {{ new_email }} for your FastBack account. Click the link below to confirm:</p>
+<p><a href="{{ verification_url }}">Confirm Email Change</a></p>
+<p>If you didn't request this change, please secure your account immediately.</p>
+<p>This link will expire in 1 hour.</p>
+{% endblock %}

@@ -2,6 +2,23 @@
 
 A FastAPI backend with Docker development environment, Poetry dependency management, and Ruff for linting/formatting.
 
+## Quick Start
+
+```bash
+# Copy environment file
+cp .env.example .env
+
+# Install dependencies and compile email templates
+make install
+
+# Start development server (includes migrations)
+make up
+```
+
+- API: http://localhost:8000
+- Docs: http://localhost:8000/docs
+- Admin: http://localhost:8000/admin
+
 ## Tech Stack
 
 - **[FastAPI](https://fastapi.tiangolo.com/)** - Modern async web framework
@@ -49,30 +66,30 @@ A FastAPI backend with Docker development environment, Poetry dependency managem
 
 ## Environment Variables
 
-| Variable                         | Required | Description                                                       |
-| -------------------------------- | -------- | ----------------------------------------------------------------- |
-| `DB_USER`                        | Yes      | PostgreSQL username                                               |
-| `DB_PASSWORD`                    | Yes      | PostgreSQL password                                               |
-| `DB_HOST`                        | Yes      | PostgreSQL host                                                   |
-| `DB_PORT`                        | Yes      | PostgreSQL port                                                   |
-| `DB_NAME`                        | Yes      | PostgreSQL database name                                          |
-| `DATABASE_URL`                   | Yes      | Full connection string (uses above variables)                     |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Yes      | Path to Firebase service account JSON                             |
-| `FIREBASE_API_KEY`               | Yes      | Firebase API key for Identity Toolkit                             |
-| `SESSION_SECRET_KEY`             | Yes      | Secret key for admin sessions                                     |
-| `ADMIN_USERNAME`                 | Yes      | SQLAdmin username                                                 |
-| `ADMIN_PASSWORD`                 | Yes      | SQLAdmin password                                                 |
-| `RESEND_API_KEY`                 | No       | Resend API key for password reset emails                          |
-| `ENV_NAME`                       | No       | Environment name (default: `development`)                         |
-| `APP_DOMAIN`                     | No       | Domain for emails (default: `resend.dev`)                         |
-| `CLIENT_URL`                     | No       | Client app URL (default: `http://localhost:3000`)                 |
-| `CORS_ORIGINS`                   | No       | Comma-separated allowed origins (default: `*`)                    |
-| `SESSION_EXPIRES_DAYS`           | No       | Session cookie expiration in days (default: `5`, range: 1-14)     |
-| `LOG_LEVEL`                      | No       | Log level (default: `INFO`)                                       |
-| `LOG_JSON`                       | No       | JSON logs (`true`/`false`, default: `false`)                      |
-| `LOG_REQUESTS`                   | No       | Log each HTTP request (default: `true`)                           |
-| `LOG_UVICORN_ACCESS`             | No       | Uvicorn access logs; defaults to `false` when `LOG_REQUESTS=true` |
-| `HTTPX_LOG_LEVEL`                | No       | httpx log level (default: `WARNING`)                              |
+| Variable                        | Required | Description                                                              |
+| ------------------------------- | :------: | ------------------------------------------------------------------------ |
+| `DB_USER`                       |   Yes    | PostgreSQL username                                                      |
+| `DB_PASSWORD`                   |   Yes    | PostgreSQL password                                                      |
+| `DB_HOST`                       |   Yes    | PostgreSQL host                                                          |
+| `DB_PORT`                       |   Yes    | PostgreSQL port                                                          |
+| `DB_NAME`                       |   Yes    | PostgreSQL database name                                                 |
+| `DATABASE_URL`                  |   Yes    | Full connection string (constructed from values above)                   |
+| `GOOGLE_APPLICATION_CREDENTIALS`|   Yes    | Path to Firebase service account JSON                                    |
+| `FIREBASE_API_KEY`              |   Yes    | Firebase API key for Identity Toolkit                                    |
+| `SESSION_SECRET_KEY`            |   Yes    | Secret key for admin sessions                                            |
+| `ADMIN_USERNAME`                |   Yes    | SQLAdmin username                                                        |
+| `ADMIN_PASSWORD`                |   Yes    | SQLAdmin password                                                        |
+| `RESEND_API_KEY`                |   No     | Resend API key for password reset emails                                 |
+| `ENV_NAME`                      |   No     | Environment name (default: `development`)                                |
+| `APP_DOMAIN`                    |   No     | Domain for emails (default: `resend.dev`)                                |
+| `CLIENT_URL`                    |   No     | Client app URL (default: `http://localhost:3000`)                        |
+| `CORS_ORIGINS`                  |   No     | Comma-separated allowed origins (default: `*`)                           |
+| `SESSION_EXPIRES_DAYS`          |   No     | Session cookie expiration in days (default: `5`, range: 1–14)            |
+| `LOG_LEVEL`                     |   No     | Log level (default: `INFO`)                                              |
+| `LOG_JSON`                      |   No     | JSON logs (`true`/`false`, default: `false`)                             |
+| `LOG_REQUESTS`                  |   No     | Log each HTTP request (default: `true`)                                  |
+| `LOG_UVICORN_ACCESS`            |   No     | Uvicorn access logs (default: `false`; enabled if set `true`)            |
+| `HTTPX_LOG_LEVEL`               |   No     | httpx log level (default: `WARNING`)                                     |
 
 ## Logging
 
@@ -155,6 +172,8 @@ Run `make help` to see all available commands:
 
 | Command                          | Description                                          |
 | -------------------------------- | ---------------------------------------------------- |
+| `make install`                   | Install dependencies, compile emails, setup hooks    |
+| `make compile-emails`            | Compile email templates (inline CSS, minify)         |
 | `make up`                        | Start Docker dev server (runs migrations)            |
 | `make up-d`                      | Start in detached mode (runs migrations)             |
 | `make down`                      | Stop containers                                      |
@@ -162,7 +181,7 @@ Run `make help` to see all available commands:
 | `make down-all`                  | Stop containers, remove volumes, images, and orphans |
 | `make logs`                      | Tail container logs                                  |
 | `make sh`                        | Shell into container                                 |
-| `make fmt`                       | Format code with Ruff                                |
+| `make format`                    | Format code with Ruff                                |
 | `make lint`                      | Lint code with Ruff                                  |
 | `make fix`                       | Auto-fix lint issues                                 |
 | `make test`                      | Run tests                                            |
@@ -199,30 +218,23 @@ fastback/
 │   ├── router.py        # Central router aggregation
 │   ├── admin/           # SQLAdmin UI and authentication
 │   ├── alembic/         # Database migrations
-│   ├── auth/            # Authentication domain
-│   │   ├── router.py        # Auth endpoints
-│   │   ├── service.py       # Firebase service
-│   │   ├── schemas.py       # Request/response models
-│   │   ├── dependencies.py  # Auth dependencies
-│   │   └── exceptions.py    # Auth exceptions
-│   ├── user/            # User management domain
-│   │   ├── router.py        # User endpoints
-│   │   ├── models.py        # User database model
-│   │   ├── schemas.py       # User schemas
-│   │   └── exceptions.py    # User exceptions
-│   ├── health/          # Health check endpoint
-│   ├── core/            # Shared utilities
-│   │   ├── settings.py      # Configuration
-│   │   ├── deps.py          # Dependency aliases
-│   │   ├── email.py         # Email sending (Resend)
-│   │   ├── firebase.py      # Firebase initialization
-│   │   └── exceptions.py    # Base exceptions
+│   ├── core/            # Shared utilities (settings, deps, exceptions)
 │   ├── db/              # Database engine and sessions
-│   └── models/          # Shared models
+│   ├── models/          # Shared models
+│   ├── templates/       # Email and other templates
+│   └── <domain>/        # Domain modules (auth, user, health, etc.)
+│       ├── router.py        # API endpoints
+│       ├── service.py       # Business logic
+│       ├── models.py        # Database models
+│       ├── schemas.py       # Request/response Pydantic models
+│       ├── dependencies.py  # Route dependencies
+│       └── exceptions.py    # Domain-specific exceptions
 ├── tests/               # Pytest test suite
 ├── docs/                # Documentation
 └── scripts/             # Utility scripts
 ```
+
+Each domain module follows this convention. Not all files are required—include only what the domain needs.
 
 ## Exception Handling
 
@@ -348,21 +360,21 @@ This project follows SOLID principles to maintain clean, maintainable code:
 
 Each module has one clear responsibility:
 
-| Module                       | Responsibility                         |
-| ---------------------------- | -------------------------------------- |
-| `app/auth/router.py`         | Authentication endpoints               |
-| `app/auth/service.py`        | Firebase service abstraction           |
-| `app/auth/dependencies.py`   | Auth dependencies (CurrentUserDep)     |
-| `app/user/router.py`         | User management endpoints              |
-| `app/user/models.py`         | User database model                    |
-| `app/router.py`              | Router aggregation only                |
-| `app/db/engine.py`           | Database engine and session management |
-| `app/core/settings.py`       | Typed application configuration        |
-| `app/core/deps.py`           | Shared dependency providers            |
-| `app/core/constants.py`      | Route prefixes and tags                |
-| `app/core/firebase.py`       | Firebase SDK initialization            |
-| `app/core/email.py`          | Email delivery via Resend              |
-| `app/core/cors.py`           | CORS middleware configuration          |
+| Module                     | Responsibility                         |
+| -------------------------- | -------------------------------------- |
+| `app/auth/router.py`       | Authentication endpoints               |
+| `app/auth/service.py`      | Firebase service abstraction           |
+| `app/auth/dependencies.py` | Auth dependencies (CurrentUserDep)     |
+| `app/user/router.py`       | User management endpoints              |
+| `app/user/models.py`       | User database model                    |
+| `app/router.py`            | Router aggregation only                |
+| `app/db/engine.py`         | Database engine and session management |
+| `app/core/settings.py`     | Typed application configuration        |
+| `app/core/deps.py`         | Shared dependency providers            |
+| `app/core/constants.py`    | Route prefixes and tags                |
+| `app/core/firebase.py`     | Firebase SDK initialization            |
+| `app/core/email.py`        | Email delivery via Resend              |
+| `app/core/cors.py`         | CORS middleware configuration          |
 
 ### Open/Closed Principle (OCP)
 

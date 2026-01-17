@@ -540,6 +540,31 @@ test = ["certifi (>=2024)", "cryptography-vectors (==46.0.3)", "pretend (>=0.7)"
 test-randomorder = ["pytest-randomly"]
 
 [[package]]
+name = "css-inline"
+version = "0.19.0"
+description = "High-performance library for inlining CSS into HTML 'style' attributes"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "css_inline-0.19.0-cp39-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:286c00f4df005ed895b3c0778ce96f18d451af402ea06748904fefb7ed66febe"},
+    {file = "css_inline-0.19.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:6132934ac99aa106d6d1058d5991ac83bfcc17f9344d20f6614d6123fc99b9f7"},
+    {file = "css_inline-0.19.0-cp39-abi3-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:33aaa141265b307589a85bbe99dc0af983f7a149d661ae13fb57d67513a6c990"},
+    {file = "css_inline-0.19.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:38c2d280ac662c0522514ebcb2181a70243d83fa1e7b4aa1fcc0fe8c54005dc4"},
+    {file = "css_inline-0.19.0-cp39-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:88acf02be856dab4593e52a2ff21c1f81bc71916f1ebf1dcfb4b97bee99a15cf"},
+    {file = "css_inline-0.19.0-cp39-abi3-manylinux_2_24_armv7l.whl", hash = "sha256:f84a706c55c8fb9d57e0a128fa68d4402faf2519d1464dc31d1cbc58a6165fd7"},
+    {file = "css_inline-0.19.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:f9d7cb2037227ea255444a4e8a83ba50a1f4e65f5f4824f3a3cabe8297b8b7c2"},
+    {file = "css_inline-0.19.0-cp39-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:7aceb6f4b29d682507815a8a7982e3a65d2f75eaf39ce727141011ca1dc61fdb"},
+    {file = "css_inline-0.19.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:35a798e76edb4cf86ccdd2ca25c59cc258720e58935fe2dd395042e517e8b0f6"},
+    {file = "css_inline-0.19.0-cp39-abi3-win32.whl", hash = "sha256:53423d638987454174679f05d444305c74dcce7ae82e01512225b06c3bb70bc2"},
+    {file = "css_inline-0.19.0-cp39-abi3-win_amd64.whl", hash = "sha256:887d9f1e07e43032f63ad3f00c1cc3664944f9a7780252119c3caf3b5e6e262e"},
+    {file = "css_inline-0.19.0-pp311-pypy311_pp73-macosx_10_12_x86_64.whl", hash = "sha256:e2e95a3f6879707fb3662bd08b414be9aafe54056aece75ab7fd146c4efdd802"},
+    {file = "css_inline-0.19.0-pp311-pypy311_pp73-manylinux_2_24_aarch64.whl", hash = "sha256:de43bf175848a80718489b58329cf8a4bb7e26c3fa322c6e67a65130f81b2be2"},
+    {file = "css_inline-0.19.0-pp311-pypy311_pp73-manylinux_2_24_x86_64.whl", hash = "sha256:dd22d7e84e6d4b8954180b90b15b1374dd438043903337edd5ba2fa9e58a65e4"},
+    {file = "css_inline-0.19.0.tar.gz", hash = "sha256:1fe3432758262397332f137e427635062fb76df7c67425ce3d8df1069347385c"},
+]
+
+[[package]]
 name = "distlib"
 version = "0.4.0"
 description = "Distribution utilities"
@@ -1469,6 +1494,66 @@ groups = ["main"]
 files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
+]
+
+[[package]]
+name = "minify-html"
+version = "0.18.1"
+description = "Extremely fast and smart HTML + JS + CSS minifier"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "minify_html-0.18.1-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:eb592b6b03e747f6b4807b64527cf36491c208fd8f414841fbcdc28c9dbc1296"},
+    {file = "minify_html-0.18.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:9103ce2b90edb4ba2961a7ddf95a1c6e262ec14845d88d0bfaf9f01560698005"},
+    {file = "minify_html-0.18.1-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:90c8d3267e69db2a5f041cc15d92d5991973b6dee6a08458d4e9b72e2524c846"},
+    {file = "minify_html-0.18.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:af58fe4ef6fa050e36fefdac2a7d0c35c3656fb1d55c07d521b6fa3d137e3f68"},
+    {file = "minify_html-0.18.1-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:354fb1dbf9b5b596d249b6dba5b95ed819f70064f36b6a28e5e470e90d859ceb"},
+    {file = "minify_html-0.18.1-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:17d20b79e4218a19ef11b608d8702e23fdeca624444ba1684364255a00a12c07"},
+    {file = "minify_html-0.18.1-cp310-cp310-win_amd64.whl", hash = "sha256:0c81fc35cf81926d603af04e9dfb9db57aa912d20da615f9d6e19d840c0ef006"},
+    {file = "minify_html-0.18.1-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:aa9ce0978b03b4040ef72f4eb6a367bd615165d88b5c2363c098efa3d60d7855"},
+    {file = "minify_html-0.18.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:91791ea8a6c5f6cc227dc9febd036382e3ac7f93c157d48599f9668a5e813339"},
+    {file = "minify_html-0.18.1-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a20c648f26b600a55ea2f3f8e8c1c2797408890cfe453e58a151c3bcd1a088fb"},
+    {file = "minify_html-0.18.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b92f40bab8178cbc39a0e2c602513b6478b9489e4b99c5452a680342881db7d8"},
+    {file = "minify_html-0.18.1-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:af83d722fe73e1e571da1130d09f06358cf507a18c153c72a4e56c276e7305af"},
+    {file = "minify_html-0.18.1-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:f5c3e4a711cd51643cb0b76d24fdd74646e55f0a92ae3c3ef2f8a6746f6b7ae4"},
+    {file = "minify_html-0.18.1-cp311-cp311-win_amd64.whl", hash = "sha256:d99db3db6208729aea917a884413eed0850148792bc33fc81f70ec9e41465906"},
+    {file = "minify_html-0.18.1-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:fe625fae576d20f0fe5981f0f7a5fe6d96608bbb8daf4815f7a0b28be7d62472"},
+    {file = "minify_html-0.18.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:3e9a91dc200c0a99e0b3c577b44aee0aa449aaf510464197f198e94b7bdf2d48"},
+    {file = "minify_html-0.18.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:854590f1fc1b2ba8f8cd26e925030a37fb6e042545d0cef2b44d0d1942d02943"},
+    {file = "minify_html-0.18.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:568aa4fea1918408ffa2a4f7aad1c35cdcdadb7e1a50ca06bcdce9fa8a4a648a"},
+    {file = "minify_html-0.18.1-cp312-cp312-musllinux_1_1_aarch64.whl", hash = "sha256:98c8a76f35394f3ba125cb1b645e9a4a18080f0a12912346c7ded9711d96d045"},
+    {file = "minify_html-0.18.1-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:72960df65a518f3a8a1c9cdba4d22fe75cdd599ac6f39d806441fe8f00d9ce5f"},
+    {file = "minify_html-0.18.1-cp312-cp312-win_amd64.whl", hash = "sha256:55de95959c5b0a5b816e3a071fe8cd781bc015921e4d1fd8ca169a6729d86cd6"},
+    {file = "minify_html-0.18.1-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:d476ad2a54055d71bb7a94e1c1fad1e8e53f0b33a91cf800d8df4ebbce1d7dd9"},
+    {file = "minify_html-0.18.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:21790c2e578918f390aeebc865c94bd2f50eb790e27cc61d4e7725501b551250"},
+    {file = "minify_html-0.18.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:00f407d32f3f8369901f0e6c92610f351f69dacf4ed594d373924f54fbf01ded"},
+    {file = "minify_html-0.18.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c952a8f9e5a6403611b338b75bbf9469cf4ce04f15426a9ef9da87456fd55bd6"},
+    {file = "minify_html-0.18.1-cp313-cp313-musllinux_1_1_aarch64.whl", hash = "sha256:0e1592a4efc56848129d60f95bdcf79e32e1cce045aa004ab57233b7b16e126f"},
+    {file = "minify_html-0.18.1-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:a0e557e7e43b233b5416cd0b0874ac369ce168f2024f7199925350f5bc09af15"},
+    {file = "minify_html-0.18.1-cp313-cp313-win_amd64.whl", hash = "sha256:f8fca598b171ee603b8ed399bedd2de00d202cfcb0e98feadb21deb11d5d669b"},
+    {file = "minify_html-0.18.1-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:e34af8574ed701555561fcc29d14ff6e8969df5281d51b62cdf556ca0ca7a56e"},
+    {file = "minify_html-0.18.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:e93301610f6c78ff83cf9d556d779ed4dee1c8aadf45a12dc4b40cebbe477a2e"},
+    {file = "minify_html-0.18.1-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0f3f167339638f26af34a56027b24e7e2daa03670b84a1ba661975d6d4536481"},
+    {file = "minify_html-0.18.1-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e862f89f1493c17fe74d8c7a75bbd480aa7784bbf47ec396d9db4871101f94e4"},
+    {file = "minify_html-0.18.1-cp314-cp314-musllinux_1_1_aarch64.whl", hash = "sha256:045dd5640e988cc385d350e224e13f609a606a6cf9fa5f5011a1d860d4ebe607"},
+    {file = "minify_html-0.18.1-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:3a11a926b2c236f527d8295b7f6e20c41728bdf870732273e2471e8c693f6109"},
+    {file = "minify_html-0.18.1-cp314-cp314-win_amd64.whl", hash = "sha256:41f46915ce2634dd70138488a96d6b36e8b8cc2c2ee2953d89c525658394500a"},
+    {file = "minify_html-0.18.1-cp38-cp38-macosx_10_12_x86_64.whl", hash = "sha256:f8354721d4b3ace0400d7b4302b14f080cdb8acaf28f6891d9318a2b4623de57"},
+    {file = "minify_html-0.18.1-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:497a854d45aa85c93089b83166e97d30a7a9f1fe6b45b3f1fac50dc075aca596"},
+    {file = "minify_html-0.18.1-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:41995dcbcc93305656f409849511c196c0b893f4afffd053467c559c119c09e7"},
+    {file = "minify_html-0.18.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f2bc1ff96174f9796515be57f3abf2500872181035270373112ff4641eeb609e"},
+    {file = "minify_html-0.18.1-cp38-cp38-musllinux_1_1_aarch64.whl", hash = "sha256:b857f8fddc14e0c6e50ecea858c4e95b4f984bbb602e28160289c172908be381"},
+    {file = "minify_html-0.18.1-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:ec52fd4408d5de20a2b375d5b35fa4de01092c5fce17febae8e82af5f57f43bb"},
+    {file = "minify_html-0.18.1-cp38-cp38-win_amd64.whl", hash = "sha256:74360e18f33e6b237a42d5e4082eba56d59f18eb2e92cec03401288462544f37"},
+    {file = "minify_html-0.18.1-cp39-cp39-macosx_10_12_x86_64.whl", hash = "sha256:85232f2ff21cfe60a163db768be1b096bd589f74ad9ceb1e2e3a9776ed7d3438"},
+    {file = "minify_html-0.18.1-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:a32d3f6467ae7e3cf990c2fa2e08956bce5ae6dc42c49c93e2599a8a8d01d065"},
+    {file = "minify_html-0.18.1-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b2260c6385a7a48b87c7b3216b27949293cb9c28c624e5bc973de8e3a997056a"},
+    {file = "minify_html-0.18.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:eb2ba09567538a7e7e385d75ef11ee1d6abbc38f2645b78823b95ed24ed0555c"},
+    {file = "minify_html-0.18.1-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:842c330307a2b10e74fe1df0899cdfddaff0efd14543b3bd9b124b75e0f9a03a"},
+    {file = "minify_html-0.18.1-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:01ac739abdf9da1ce253afc060f04e7704f3288b96c14fa301957757a3c06780"},
+    {file = "minify_html-0.18.1-cp39-cp39-win_amd64.whl", hash = "sha256:56b59ee3b4d359765163ee4adfb6c9012f00338e9112793f6bd09aa1db3ed411"},
+    {file = "minify_html-0.18.1.tar.gz", hash = "sha256:43998530ef537701f003a8e908b756d78eff303c86b041a95855e290518ba79c"},
 ]
 
 [[package]]
@@ -2882,4 +2967,4 @@ email = ["email-validator"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~=3.12"
-content-hash = "dac8bf9b8e767b7df60eb99c03dacaa358fa89bd30ba2cb2af25a7e52888546c"
+content-hash = "8ff2162e17a9f0527071a5978a7a7cbf55503135851acdc7e41da0512bd8cae7"

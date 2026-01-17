@@ -6,7 +6,10 @@ and common response definitions for API routes.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 @dataclass(frozen=True)
@@ -43,3 +46,20 @@ class CommonResponses:
     BAD_REQUEST: dict[int, dict[str, Any]] = {
         400: {"description": "Invalid request data"}
     }
+
+
+# HTML Templates Directory
+EmailTemplatesDir = Path(__file__).parent.parent / "templates" / "emails"
+CompiledEmailTemplatesDir = EmailTemplatesDir / "compiled"
+
+# Jinja2 environment for source templates (used by compile script)
+JinjaEmailTemplatesEnv = Environment(
+    loader=FileSystemLoader(str(EmailTemplatesDir)),
+    autoescape=select_autoescape(["html", "xml"]),
+)
+
+# Jinja2 environment for compiled templates (used at runtime)
+JinjaCompiledEmailTemplatesEnv = Environment(
+    loader=FileSystemLoader(str(CompiledEmailTemplatesDir)),
+    autoescape=select_autoescape(["html", "xml"]),
+)

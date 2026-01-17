@@ -3,13 +3,18 @@
 COMPOSE := docker compose -f docker-compose.dev.yml
 SERVICE := fastback-api
 
-.PHONY: help install up up-d down down-v down-all logs sh format lint fix test test-cov test-cov-html migrate migrate-new migrate-down migrate-history
+.PHONY: help install compile-emails up up-d down down-v down-all logs sh format lint fix test test-cov test-cov-html migrate migrate-new migrate-down migrate-history
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make <target>\n\nTargets:\n"} /^[a-zA-Z_-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## Install dependencies and pre-commit hooks
-	poetry install && poetry run pre-commit install --hook-type commit-msg
+install: ## Install dependencies, compile emails, setup hooks
+	poetry install
+	python scripts/compile_emails.py
+	poetry run pre-commit install --hook-type commit-msg
+
+compile-emails: ## Compile email templates (inline CSS, minify)
+	python scripts/compile_emails.py
 
 up: ## Start Docker dev server (migrations run automatically)
 	$(COMPOSE) up -d --build

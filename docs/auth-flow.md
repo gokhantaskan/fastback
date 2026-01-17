@@ -336,30 +336,30 @@ sequenceDiagram
 
 ### Authentication Endpoints
 
-| Endpoint                            | Method | Auth   | Description                                      |
-| ----------------------------------- | ------ | ------ | ------------------------------------------------ |
-| `/auth/register`                    | POST   | None   | Create Firebase and local user (signup)          |
-| `/auth/login`                       | POST   | None   | Login with email/password, sets session cookie   |
-| `/auth/logout`                      | POST   | Cookie | Clear session cookie and revoke refresh tokens   |
-| `/auth/request-password-reset`      | POST   | None   | Send password reset email via Resend             |
-| `/auth/confirm-password-reset`      | POST   | None   | Complete reset with oobCode and new password     |
-| `/auth/request-verification-email`  | POST   | User   | Send email verification link                     |
-| `/auth/confirm-verification-email`  | POST   | None   | Verify email with oobCode                        |
-| `/auth/update-password`             | POST   | User   | Update password (requires current password)      |
-| `/auth/request-email-change`        | POST   | User   | Request email change (sends to current email)    |
-| `/auth/confirm-email-change`        | POST   | None   | Confirm email change with oobCode                |
-| `/auth/me`                          | GET    | User   | Get current user                                 |
-| `/auth/revoke-tokens`               | POST   | User   | Revoke all refresh tokens (sign out all devices) |
+| Endpoint                           | Method | Auth   | Description                                      |
+| ---------------------------------- | ------ | ------ | ------------------------------------------------ |
+| `/auth/register`                   | POST   | None   | Create Firebase and local user (signup)          |
+| `/auth/login`                      | POST   | None   | Login with email/password, sets session cookie   |
+| `/auth/logout`                     | POST   | Cookie | Clear session cookie and revoke refresh tokens   |
+| `/auth/request-password-reset`     | POST   | None   | Send password reset email via Resend             |
+| `/auth/confirm-password-reset`     | POST   | None   | Complete reset with oobCode and new password     |
+| `/auth/request-verification-email` | POST   | User   | Send email verification link                     |
+| `/auth/confirm-verification-email` | POST   | None   | Verify email with oobCode                        |
+| `/auth/update-password`            | POST   | User   | Update password (requires current password)      |
+| `/auth/request-email-change`       | POST   | User   | Request email change (sends to current email)    |
+| `/auth/confirm-email-change`       | POST   | None   | Confirm email change with oobCode                |
+| `/auth/me`                         | GET    | User   | Get current user                                 |
+| `/auth/revoke-tokens`              | POST   | User   | Revoke all refresh tokens (sign out all devices) |
 
 ### User Management Endpoints
 
-| Endpoint          | Method | Auth  | Description            |
-| ----------------- | ------ | ----- | ---------------------- |
-| `/users/me`       | PATCH  | User  | Update current user    |
-| `/users/me`       | DELETE | User  | Delete current user    |
-| `/users/`         | GET    | Admin | List all users         |
-| `/users/{user_id}`| GET    | Admin | Get user by ID         |
-| `/users/{user_id}`| PATCH  | Admin | Update user by ID      |
+| Endpoint           | Method | Auth  | Description         |
+| ------------------ | ------ | ----- | ------------------- |
+| `/users/me`        | PATCH  | User  | Update current user |
+| `/users/me`        | DELETE | User  | Delete current user |
+| `/users/`          | GET    | Admin | List all users      |
+| `/users/{user_id}` | GET    | Admin | Get user by ID      |
+| `/users/{user_id}` | PATCH  | Admin | Update user by ID   |
 
 ## Response Schemas
 
@@ -429,26 +429,26 @@ Response schema for `/auth/confirm-verification-email`:
 
 ## Session Cookie Properties
 
-| Property   | Value                                          |
-| ---------- | ---------------------------------------------- |
-| Name       | `session`                                      |
-| Max-Age    | 5-14 days (configurable via `SESSION_EXPIRES_DAYS`) |
-| HttpOnly   | `true` (prevents JavaScript access)            |
-| Secure     | `true` in production, `false` in dev           |
-| SameSite   | `lax` (CSRF protection)                        |
+| Property | Value                                               |
+| -------- | --------------------------------------------------- |
+| Name     | `session`                                           |
+| Max-Age  | 5-14 days (configurable via `SESSION_EXPIRES_DAYS`) |
+| HttpOnly | `true` (prevents JavaScript access)                 |
+| Secure   | `true` in production, `false` in dev                |
+| SameSite | `lax` (CSRF protection)                             |
 
 ## Error Responses
 
-| Status | Meaning                             |
-| ------ | ----------------------------------- |
+| Status | Meaning                                            |
+| ------ | -------------------------------------------------- |
 | 400    | Bad request (weak password, invalid oobCode, etc.) |
-| 401    | Missing or invalid authentication   |
-| 403    | User is inactive or disabled        |
-| 404    | User not found in database          |
-| 409    | Conflict (duplicate registration)   |
-| 429    | Too many requests (rate limited)    |
-| 500    | Internal server error               |
-| 502    | Authentication provider unavailable |
+| 401    | Missing or invalid authentication                  |
+| 403    | User is inactive or disabled                       |
+| 404    | User not found in database                         |
+| 409    | Conflict (duplicate registration)                  |
+| 429    | Too many requests (rate limited)                   |
+| 500    | Internal server error                              |
+| 502    | Authentication provider unavailable                |
 
 ## Security Considerations
 

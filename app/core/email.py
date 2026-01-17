@@ -2,7 +2,25 @@ from urllib.parse import parse_qs, urlparse
 
 import resend
 
+from app.core.constants import JinjaCompiledEmailTemplatesEnv
 from app.core.settings import get_settings
+
+
+def _render_template(template_name: str, **context: str) -> str:
+    """Render a pre-compiled email template.
+
+    Templates are pre-compiled with CSS inlined and HTML minified.
+    Run `make compile-emails` after modifying source templates.
+
+    Args:
+        template_name: Name of the template file
+        **context: Template variables
+
+    Returns:
+        Rendered HTML
+    """
+    template = JinjaCompiledEmailTemplatesEnv.get_template(template_name)
+    return template.render(**context)
 
 
 def init_resend() -> None:
@@ -48,18 +66,14 @@ def send_password_reset_email(to_email: str, firebase_reset_link: str) -> None:
     print(f"Reset URL: {reset_url}")
     print("================================================")
 
+    html_content = _render_template("password-reset.html", reset_url=reset_url)
+
     resend.Emails.send(
         {
             "from": from_email,
             "to": to_email,
             "subject": "FastBack - Reset Your Password",
-            "html": f"""
-                <h2>Password Reset Request</h2>
-                <p>You requested to reset your password for your FastBack account. Click the link below to proceed:</p>
-                <p><a href="{reset_url}">Reset Password</a></p>
-                <p>If you didn't request this, you can safely ignore this email.</p>
-                <p>This link will expire in 1 hour.</p>
-            """,  # noqa: E501
+            "html": html_content,
         }
     )
 
@@ -88,18 +102,16 @@ def send_email_verification_email(
     print(f"Verification URL: {verification_url}")
     print("================================================")
 
+    html_content = _render_template(
+        "email-verification.html", verification_url=verification_url
+    )
+
     resend.Emails.send(
         {
             "from": from_email,
             "to": to_email,
             "subject": "FastBack - Verify Your Email",
-            "html": f"""
-                <h2>Verify Your Email Address</h2>
-                <p>Thank you for signing up for FastBack! Please verify your email address by clicking the link below:</p>
-                <p><a href="{verification_url}">Verify Email</a></p>
-                <p>If you didn't create an account, you can safely ignore this email.</p>
-                <p>This link will expire in 1 hour.</p>
-            """,  # noqa: E501
+            "html": html_content,
         }
     )
 
@@ -131,17 +143,17 @@ def send_email_change_verification_email(
     print(f"Email Change URL: {verification_url}")
     print("================================================")
 
+    html_content = _render_template(
+        "email-change-verification.html",
+        new_email=new_email,
+        verification_url=verification_url,
+    )
+
     resend.Emails.send(
         {
             "from": from_email,
             "to": to_email,
             "subject": "FastBack - Confirm Email Change",
-            "html": f"""
-                <h2>Confirm Email Address Change</h2>
-                <p>You requested to change your email address to {new_email} for your FastBack account. Click the link below to confirm:</p>
-                <p><a href="{verification_url}">Confirm Email Change</a></p>
-                <p>If you didn't request this change, please secure your account immediately.</p>
-                <p>This link will expire in 1 hour.</p>
-            """,  # noqa: E501
+            "html": html_content,
         }
     )
