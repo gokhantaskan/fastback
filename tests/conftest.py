@@ -7,16 +7,16 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.core.auth import get_current_user
-from app.core.settings import Settings, get_settings
-from app.db.engine import get_session
-from app.main import app
-from app.models.user import User
-from app.services.firebase_auth import (
+from app.auth.dependencies import get_current_user
+from app.auth.service import (
     FirebaseAuthService,
     TokenClaims,
     get_firebase_auth_service,
 )
+from app.core.settings import Settings, get_settings
+from app.db.engine import get_session
+from app.main import app
+from app.user.models import User
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -68,7 +68,7 @@ def session_fixture():
 def test_user_fixture(session: Session):
     """Create a test user in the database."""
     user = User(
-        firebase_uid="test-firebase-uid-123",
+        external_id="test-firebase-uid-123",
         email="test@example.com",
         first_name="Test",
         last_name="User",
@@ -84,11 +84,28 @@ def test_user_fixture(session: Session):
 def inactive_user_fixture(session: Session):
     """Create an inactive test user."""
     user = User(
-        firebase_uid="inactive-uid-456",
+        external_id="inactive-uid-456",
         email="inactive@example.com",
         first_name="Inactive",
         last_name="User",
         is_active=False,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@pytest.fixture(name="admin_user")
+def admin_user_fixture(session: Session):
+    """Create an admin test user in the database."""
+    user = User(
+        external_id="admin-external-id-789",
+        email="admin@example.com",
+        first_name="Admin",
+        last_name="User",
+        is_active=True,
+        is_admin=True,
     )
     session.add(user)
     session.commit()
@@ -135,6 +152,38 @@ def client_fixture(
 
     def get_current_user_override():
         return test_user
+
+    def get_firebase_auth_override():
+        return mock_firebase_auth
+
+    def get_settings_override():
+        return mock_settings
+
+    app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[get_current_user] = get_current_user_override
+    app.dependency_overrides[get_firebase_auth_service] = get_firebase_auth_override
+    app.dependency_overrides[get_settings] = get_settings_override
+
+    client = TestClient(app)
+    yield client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(name="admin_client")
+def admin_client_fixture(
+    session: Session,
+    admin_user: User,
+    mock_firebase_auth: MagicMock,
+    mock_settings: Settings,
+):
+    """Create a test client authenticated as an admin user."""
+
+    def get_session_override():
+        return session
+
+    def get_current_user_override():
+        return admin_user
 
     def get_firebase_auth_override():
         return mock_firebase_auth

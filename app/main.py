@@ -5,7 +5,6 @@ from sqladmin import Admin
 
 from app.admin.auth import AdminAuth
 from app.admin.views import UserAdmin
-from app.api.router import api_router
 from app.core.cors import add_cors_middleware
 from app.core.email import init_resend
 from app.core.exception_handlers import register_exception_handlers
@@ -13,6 +12,7 @@ from app.core.firebase import init_firebase
 from app.core.logging import configure_logging
 from app.core.request_logging import add_request_logging_middleware
 from app.db.engine import engine
+from app.router import api_router
 
 configure_logging()
 

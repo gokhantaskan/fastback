@@ -1,6 +1,6 @@
 from sqladmin import ModelView
 
-from app.models.user import User
+from app.user.models import User
 
 
 class UserAdmin(ModelView, model=User):
@@ -19,7 +19,7 @@ class UserAdmin(ModelView, model=User):
         User.email,
         User.first_name,
         User.last_name,
-        User.firebase_uid,
+        User.external_id,
     ]
     column_sortable_list = [
         User.id,

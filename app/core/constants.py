@@ -21,7 +21,7 @@ class Routes:
     """Route configurations for all API endpoints."""
 
     AUTH = RouteConfig(prefix="/auth", tag="auth")
-    USER = RouteConfig(prefix="/user", tag="user")
+    USER = RouteConfig(prefix="/users", tag="users")
     HEALTH = RouteConfig(prefix="/health", tag="health")
 
 

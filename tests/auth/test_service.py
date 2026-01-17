@@ -1,4 +1,4 @@
-"""Tests for app/services/firebase_auth.py - Firebase Auth Service.
+"""Tests for app/auth/service.py - Firebase Auth Service.
 
 Property-based tests for exception hierarchy and service behavior.
 """
@@ -11,13 +11,10 @@ from hypothesis import given
 from hypothesis import settings as hypothesis_settings
 from hypothesis import strategies as st
 
-from app.core.exceptions import (
-    AppException,
-    EmailExistsError,
-    UserNotFoundError,
-    WeakPasswordError,
-)
-from app.services.firebase_auth import FirebaseAuthService
+from app.auth.exceptions import WeakPasswordError
+from app.auth.service import FirebaseAuthService
+from app.core.exceptions import AppException
+from app.user.exceptions import EmailExistsError, UserNotFoundError
 
 
 # Feature: firebase-service-refactor, Property 2: Exception Hierarchy Invariant
@@ -76,7 +73,7 @@ def test_delete_user_error_suppression(uid, error_code, error_message):
     """
     service = FirebaseAuthService(api_key="test-api-key")
 
-    with patch("app.services.firebase_auth.firebase_admin_auth") as mock_firebase_auth:
+    with patch("app.auth.service.firebase_admin_auth") as mock_firebase_auth:
         # Simulate Firebase raising an error
         mock_error = FirebaseError(code=error_code, message=error_message)
         mock_firebase_auth.delete_user.side_effect = mock_error
@@ -102,7 +99,7 @@ class TestCreateUser:
         """Set up test fixtures."""
         self.service = FirebaseAuthService(api_key="test-api-key")
 
-    @patch("app.services.firebase_auth.firebase_admin_auth")
+    @patch("app.auth.service.firebase_admin_auth")
     def test_email_exists_raises_email_exists_error(self, mock_firebase_auth):
         """Test EMAIL_EXISTS error maps to EmailExistsError.
 
@@ -116,7 +113,7 @@ class TestCreateUser:
 
         assert "already registered" in str(exc_info.value).lower()
 
-    @patch("app.services.firebase_auth.firebase_admin_auth")
+    @patch("app.auth.service.firebase_admin_auth")
     def test_weak_password_raises_weak_password_error(self, mock_firebase_auth):
         """Test WEAK_PASSWORD error maps to WeakPasswordError.
 
@@ -130,7 +127,7 @@ class TestCreateUser:
 
         assert "too weak" in str(exc_info.value).lower()
 
-    @patch("app.services.firebase_auth.firebase_admin_auth")
+    @patch("app.auth.service.firebase_admin_auth")
     def test_other_errors_raise_app_exception(self, mock_firebase_auth):
         """Test other Firebase errors map to AppException.
 
@@ -159,7 +156,7 @@ class TestGeneratePasswordResetLink:
         """Set up test fixtures."""
         self.service = FirebaseAuthService(api_key="test-api-key")
 
-    @patch("app.services.firebase_auth.firebase_admin_auth")
+    @patch("app.auth.service.firebase_admin_auth")
     def test_successful_link_generation(self, mock_firebase_auth):
         """Test successful password reset link generation.
 
@@ -175,7 +172,7 @@ class TestGeneratePasswordResetLink:
             "user@example.com"
         )
 
-    @patch("app.services.firebase_auth.firebase_admin_auth")
+    @patch("app.auth.service.firebase_admin_auth")
     def test_user_not_found_raises_user_not_found_error(self, mock_firebase_auth):
         """Test USER_NOT_FOUND error maps to UserNotFoundError.
 
@@ -189,7 +186,7 @@ class TestGeneratePasswordResetLink:
 
         assert "not found" in str(exc_info.value).lower()
 
-    @patch("app.services.firebase_auth.firebase_admin_auth")
+    @patch("app.auth.service.firebase_admin_auth")
     def test_other_errors_raise_app_exception(self, mock_firebase_auth):
         """Test other Firebase errors map to AppException.
 
