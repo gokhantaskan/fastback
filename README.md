@@ -67,6 +67,7 @@ A FastAPI backend with Docker development environment, Poetry dependency managem
 | `APP_DOMAIN`                     | No       | Domain for emails (default: `resend.dev`)                         |
 | `CLIENT_URL`                     | No       | Client app URL (default: `http://localhost:3000`)                 |
 | `CORS_ORIGINS`                   | No       | Comma-separated allowed origins (default: `*`)                    |
+| `SESSION_EXPIRES_DAYS`           | No       | Session cookie expiration in days (default: `5`, range: 1-14)     |
 | `LOG_LEVEL`                      | No       | Log level (default: `INFO`)                                       |
 | `LOG_JSON`                       | No       | JSON logs (`true`/`false`, default: `false`)                      |
 | `LOG_REQUESTS`                   | No       | Log each HTTP request (default: `true`)                           |
@@ -99,7 +100,7 @@ Firebase Admin SDK is used for token verification. Protected routes require a va
 ### Protecting Routes
 
 ```python
-from app.core.deps import CurrentUserDep
+from app.auth.dependencies import CurrentUserDep
 
 @router.get("/protected")
 async def protected_route(user: CurrentUserDep):
@@ -109,7 +110,7 @@ async def protected_route(user: CurrentUserDep):
 ### Making Authenticated Requests
 
 ```bash
-curl -H "Authorization: Bearer YOUR_FIREBASE_ID_TOKEN" http://localhost:8000/user/me
+curl -H "Authorization: Bearer YOUR_FIREBASE_ID_TOKEN" http://localhost:8000/users/me
 ```
 
 ## Database Migrations
@@ -195,13 +196,29 @@ poetry add --group dev <package-name>
 fastback/
 ├── app/
 │   ├── main.py          # FastAPI application entry
+│   ├── router.py        # Central router aggregation
 │   ├── admin/           # SQLAdmin UI and authentication
 │   ├── alembic/         # Database migrations
-│   ├── api/             # Routes and HTTP handling
-│   ├── core/            # Auth, config, dependencies
+│   ├── auth/            # Authentication domain
+│   │   ├── router.py        # Auth endpoints
+│   │   ├── service.py       # Firebase service
+│   │   ├── schemas.py       # Request/response models
+│   │   ├── dependencies.py  # Auth dependencies
+│   │   └── exceptions.py    # Auth exceptions
+│   ├── user/            # User management domain
+│   │   ├── router.py        # User endpoints
+│   │   ├── models.py        # User database model
+│   │   ├── schemas.py       # User schemas
+│   │   └── exceptions.py    # User exceptions
+│   ├── health/          # Health check endpoint
+│   ├── core/            # Shared utilities
+│   │   ├── settings.py      # Configuration
+│   │   ├── deps.py          # Dependency aliases
+│   │   ├── email.py         # Email sending (Resend)
+│   │   ├── firebase.py      # Firebase initialization
+│   │   └── exceptions.py    # Base exceptions
 │   ├── db/              # Database engine and sessions
-│   ├── models/          # SQLModel schemas
-│   └── services/        # Business logic services
+│   └── models/          # Shared models
 ├── tests/               # Pytest test suite
 ├── docs/                # Documentation
 └── scripts/             # Utility scripts
@@ -331,23 +348,25 @@ This project follows SOLID principles to maintain clean, maintainable code:
 
 Each module has one clear responsibility:
 
-| Module                     | Responsibility                         |
-| -------------------------- | -------------------------------------- |
-| `app/api/routes/*.py`      | Individual HTTP endpoint handlers      |
-| `app/api/router.py`        | Router aggregation only                |
-| `app/db/engine.py`         | Database engine and session management |
-| `app/core/settings.py`     | Typed application configuration        |
-| `app/core/deps.py`         | Dependency injection providers         |
-| `app/core/constants.py`    | Route prefixes and tags                |
-| `app/core/firebase.py`     | Firebase SDK initialization            |
-| `app/core/auth.py`         | Token verification & user resolution   |
-| `app/core/email.py`        | Email delivery via Resend              |
-| `app/core/cors.py`         | CORS middleware configuration          |
-| `app/models/*.py`          | Data models and validation             |
+| Module                       | Responsibility                         |
+| ---------------------------- | -------------------------------------- |
+| `app/auth/router.py`         | Authentication endpoints               |
+| `app/auth/service.py`        | Firebase service abstraction           |
+| `app/auth/dependencies.py`   | Auth dependencies (CurrentUserDep)     |
+| `app/user/router.py`         | User management endpoints              |
+| `app/user/models.py`         | User database model                    |
+| `app/router.py`              | Router aggregation only                |
+| `app/db/engine.py`           | Database engine and session management |
+| `app/core/settings.py`       | Typed application configuration        |
+| `app/core/deps.py`           | Shared dependency providers            |
+| `app/core/constants.py`      | Route prefixes and tags                |
+| `app/core/firebase.py`       | Firebase SDK initialization            |
+| `app/core/email.py`          | Email delivery via Resend              |
+| `app/core/cors.py`           | CORS middleware configuration          |
 
 ### Open/Closed Principle (OCP)
 
-- **Extensible routing**: Add new routes by creating a module in `app/api/routes/` and including it in `router.py`—no modification to existing route modules required
+- **Extensible routing**: Add new domain modules (e.g., `app/posts/`) with their own router and include it in `app/router.py`—no modification to existing route modules required
 - **Model extension**: New models can be added without modifying existing ones
 
 ### Liskov Substitution Principle (LSP)
@@ -359,7 +378,8 @@ Each module has one clear responsibility:
 
 - Route modules expose only a minimal `router` object
 - `app/db` exports only what consumers need: `engine`, `get_session`
-- `app/core/deps` provides focused dependency aliases: `SessionDep`, `CurrentUserDep`, `SettingsDep`, `FirebaseAuthDep`
+- `app/core/deps` provides focused dependency aliases: `SessionDep`, `SettingsDep`
+- `app/auth/dependencies` provides auth-specific dependencies: `CurrentUserDep`, `AdminUserDep`, `FirebaseAuthDep`
 
 ### Dependency Inversion Principle (DIP)
 
@@ -380,7 +400,7 @@ async def get_items(session: SessionDep):
 ### Using the CurrentUserDep Dependency
 
 ```python
-from app.core.deps import CurrentUserDep
+from app.auth.dependencies import CurrentUserDep
 
 @router.get("/me")
 async def get_me(user: CurrentUserDep):
