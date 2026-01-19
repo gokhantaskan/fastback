@@ -3,7 +3,7 @@
 Property-based tests for exception hierarchy and service behavior.
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from firebase_admin.exceptions import FirebaseError
@@ -13,7 +13,7 @@ from hypothesis import strategies as st
 
 from app.auth.exceptions import WeakPasswordError
 from app.auth.service import FirebaseAuthService
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, ProviderError
 from app.user.exceptions import EmailExistsError, UserNotFoundError
 
 
@@ -156,49 +156,68 @@ class TestGeneratePasswordResetLink:
         """Set up test fixtures."""
         self.service = FirebaseAuthService(api_key="test-api-key")
 
-    @patch("app.auth.service.firebase_admin_auth")
-    def test_successful_link_generation(self, mock_firebase_auth):
+    @pytest.mark.asyncio
+    async def test_successful_link_generation(self):
         """Test successful password reset link generation.
 
         Validates: Requirement 3.2
         """
         expected_link = "https://example.com/reset?oobCode=abc123"
-        mock_firebase_auth.generate_password_reset_link.return_value = expected_link
 
-        result = self.service.generate_password_reset_link("user@example.com")
+        with patch.object(
+            self.service,
+            "_make_admin_identity_toolkit_request",
+            new_callable=AsyncMock,
+        ) as mock_request:
+            mock_request.return_value = {"oobLink": expected_link}
 
-        assert result == expected_link
-        mock_firebase_auth.generate_password_reset_link.assert_called_once_with(
-            "user@example.com"
-        )
+            result = await self.service.generate_password_reset_link("user@example.com")
 
-    @patch("app.auth.service.firebase_admin_auth")
-    def test_user_not_found_raises_user_not_found_error(self, mock_firebase_auth):
-        """Test USER_NOT_FOUND error maps to UserNotFoundError.
+            assert result == expected_link
+            mock_request.assert_called_once_with(
+                endpoint="v1/accounts:sendOobCode",
+                payload={
+                    "requestType": "PASSWORD_RESET",
+                    "email": "user@example.com",
+                    "returnOobLink": True,
+                },
+            )
+
+    @pytest.mark.asyncio
+    async def test_user_not_found_raises_user_not_found_error(self):
+        """Test EMAIL_NOT_FOUND error maps to UserNotFoundError.
 
         Validates: Requirement 3.3
         """
-        mock_error = FirebaseError(code="USER_NOT_FOUND", message="USER_NOT_FOUND")
-        mock_firebase_auth.generate_password_reset_link.side_effect = mock_error
+        with patch.object(
+            self.service,
+            "_make_admin_identity_toolkit_request",
+            new_callable=AsyncMock,
+        ) as mock_request:
+            mock_request.side_effect = ProviderError("EMAIL_NOT_FOUND")
 
-        with pytest.raises(UserNotFoundError) as exc_info:
-            self.service.generate_password_reset_link("nonexistent@example.com")
+            with pytest.raises(UserNotFoundError) as exc_info:
+                await self.service.generate_password_reset_link(
+                    "nonexistent@example.com"
+                )
 
-        assert "not found" in str(exc_info.value).lower()
+            assert "not found" in str(exc_info.value).lower()
 
-    @patch("app.auth.service.firebase_admin_auth")
-    def test_other_errors_raise_app_exception(self, mock_firebase_auth):
-        """Test other Firebase errors map to AppException.
+    @pytest.mark.asyncio
+    async def test_other_errors_raise_app_exception(self):
+        """Test other errors map to AppException.
 
         Validates: Requirement 3.4
         """
-        mock_error = FirebaseError(
-            code="INTERNAL_ERROR", message="Something went wrong"
-        )
-        mock_firebase_auth.generate_password_reset_link.side_effect = mock_error
+        with patch.object(
+            self.service,
+            "_make_admin_identity_toolkit_request",
+            new_callable=AsyncMock,
+        ) as mock_request:
+            mock_request.side_effect = ProviderError("INTERNAL_ERROR")
 
-        with pytest.raises(AppException) as exc_info:
-            self.service.generate_password_reset_link("user@example.com")
+            with pytest.raises(AppException) as exc_info:
+                await self.service.generate_password_reset_link("user@example.com")
 
-        # Should be AppException but NOT UserNotFoundError
-        assert not isinstance(exc_info.value, UserNotFoundError)
+            # Should be AppException but NOT UserNotFoundError
+            assert not isinstance(exc_info.value, UserNotFoundError)

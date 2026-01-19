@@ -118,11 +118,11 @@ class FirebaseAuthServiceProtocol(Protocol):
         """Delete a Firebase user (best-effort, errors suppressed)."""
         ...
 
-    def generate_password_reset_link(self, email: str) -> str:
+    async def generate_password_reset_link(self, email: str) -> str:
         """Generate a password reset link for a user."""
         ...
 
-    def generate_email_verification_link(self, email: str) -> str:
+    async def generate_email_verification_link(self, email: str) -> str:
         """Generate an email verification link for a user."""
         ...
 
@@ -600,8 +600,10 @@ class FirebaseAuthService:
                 default_message="Failed to create user",
             )
 
-    def generate_password_reset_link(self, email: str) -> str:
+    async def generate_password_reset_link(self, email: str) -> str:
         """Generate a password reset link for a user.
+
+        Uses Identity Toolkit sendOobCode API with Admin SDK credentials.
 
         Args:
             email: User's email address
@@ -614,19 +616,30 @@ class FirebaseAuthService:
             AppException: For other Firebase errors
         """
         try:
-            return firebase_admin_auth.generate_password_reset_link(email)
-        except FirebaseError as e:
-            self._handle_firebase_error(
-                error=e,
-                error_mappings={
-                    "USER_NOT_FOUND": (UserNotFoundError, "User not found")
+            data = await self._make_admin_identity_toolkit_request(
+                endpoint=IDENTITY_TOOLKIT_ENDPOINTS["sendOobCode"],
+                payload={
+                    "requestType": "PASSWORD_RESET",
+                    "email": email,
+                    "returnOobLink": True,
                 },
-                default_error=AppException,
-                default_message="Failed to generate password reset link",
             )
+        except ProviderError as e:
+            error_str = str(e)
+            if "EMAIL_NOT_FOUND" in error_str or "USER_NOT_FOUND" in error_str:
+                raise UserNotFoundError("User not found") from e
+            raise AppException("Failed to generate password reset link") from e
 
-    def generate_email_verification_link(self, email: str) -> str:
+        oob_link = data.get("oobLink")
+        if not oob_link:
+            raise AppException("Failed to generate password reset link")
+
+        return oob_link
+
+    async def generate_email_verification_link(self, email: str) -> str:
         """Generate an email verification link for a user.
+
+        Uses Identity Toolkit sendOobCode API with Admin SDK credentials.
 
         Args:
             email: User's email address
@@ -638,20 +651,28 @@ class FirebaseAuthService:
             UserNotFoundError: If email not found in Firebase
             EmailVerificationError: For other verification errors
         """
-        from app.auth.exceptions import EmailVerificationError
-
         try:
-            link = firebase_admin_auth.generate_email_verification_link(email)
-            return link
-        except FirebaseError as e:
-            self._handle_firebase_error(
-                error=e,
-                error_mappings={
-                    "USER_NOT_FOUND": (UserNotFoundError, "User not found")
+            data = await self._make_admin_identity_toolkit_request(
+                endpoint=IDENTITY_TOOLKIT_ENDPOINTS["sendOobCode"],
+                payload={
+                    "requestType": "VERIFY_EMAIL",
+                    "email": email,
+                    "returnOobLink": True,
                 },
-                default_error=EmailVerificationError,
-                default_message="Failed to generate email verification link",
             )
+        except ProviderError as e:
+            error_str = str(e)
+            if "EMAIL_NOT_FOUND" in error_str or "USER_NOT_FOUND" in error_str:
+                raise UserNotFoundError("User not found") from e
+            raise EmailVerificationError(
+                "Failed to generate email verification link"
+            ) from e
+
+        oob_link = data.get("oobLink")
+        if not oob_link:
+            raise EmailVerificationError("Failed to generate email verification link")
+
+        return oob_link
 
     def get_user(self, uid: str) -> FirebaseUserRecord:
         """Get Firebase user record by UID.

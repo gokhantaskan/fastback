@@ -5,7 +5,7 @@ import uuid
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.user.models import User
+from app.user.models import User, UserStatus
 
 # --- PATCH /users/me (Self-update, limited fields) ---
 
@@ -48,9 +48,9 @@ def test_update_me_partial(client: TestClient, test_user: User):
 def test_update_me_ignores_restricted_fields(
     client: TestClient, test_user: User, session: Session
 ):
-    """Test PATCH /users/me ignores email, is_active, is_admin for security."""
+    """Test PATCH /users/me ignores email, status, is_admin for security."""
     original_email = test_user.email
-    original_is_active = test_user.is_active
+    original_status = test_user.status
     original_is_admin = test_user.is_admin
 
     # Attempt to change restricted fields (should be ignored by schema)
@@ -58,7 +58,7 @@ def test_update_me_ignores_restricted_fields(
         "/users/me",
         json={
             "email": "hacker@example.com",
-            "is_active": False,
+            "status": "inactive",
             "is_admin": True,
             "first_name": "Legit",
         },
@@ -68,14 +68,14 @@ def test_update_me_ignores_restricted_fields(
     data = response.json()
 
     # Only first_name should change
+    # Note: is_admin is not returned in UserPublicRead (security by design)
     assert data["first_name"] == "Legit"
     assert data["email"] == original_email
-    assert data["is_active"] == original_is_active
-    assert data["is_admin"] == original_is_admin
+    assert data["status"] == original_status.value
 
     session.refresh(test_user)
     assert test_user.email == original_email
-    assert test_user.is_active == original_is_active
+    assert test_user.status == original_status
     assert test_user.is_admin == original_is_admin
 
 
@@ -185,6 +185,7 @@ def test_update_user_by_admin(admin_client: TestClient, session: Session):
         email="target@example.com",
         first_name="Target",
         last_name="User",
+        status=UserStatus.active,
     )
     session.add(target_user)
     session.commit()
@@ -195,7 +196,7 @@ def test_update_user_by_admin(admin_client: TestClient, session: Session):
         json={
             "email": "updated-target@example.com",
             "first_name": "UpdatedTarget",
-            "is_active": False,
+            "status": "inactive",
         },
     )
 
@@ -203,12 +204,12 @@ def test_update_user_by_admin(admin_client: TestClient, session: Session):
     data = response.json()
     assert data["email"] == "updated-target@example.com"
     assert data["first_name"] == "UpdatedTarget"
-    assert data["is_active"] is False
+    assert data["status"] == "inactive"
 
     session.refresh(target_user)
     assert target_user.email == "updated-target@example.com"
     assert target_user.first_name == "UpdatedTarget"
-    assert target_user.is_active is False
+    assert target_user.status == UserStatus.inactive
 
 
 def test_update_user_non_admin(client: TestClient, test_user: User):
