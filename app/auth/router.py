@@ -27,6 +27,7 @@ from app.auth.schemas import (
     EmailVerificationResponse,
     PasswordResetRequest,
     PasswordResetResponse,
+    ProfileIncompleteResponse,
     RequestEmailChangeRequest,
     UpdatePasswordRequest,
 )
@@ -39,8 +40,8 @@ from app.core.email import (
 )
 from app.core.exceptions import AppException, BadRequestError, InternalError
 from app.user.exceptions import EmailExistsError, UserInactiveError, UserNotFoundError
-from app.user.models import User
-from app.user.schemas import UserRead
+from app.user.models import User, UserStatus
+from app.user.schemas import CompleteProfileRequest, UserRead
 
 logger = logging.getLogger(__name__)
 
@@ -81,13 +82,13 @@ async def register(
         password=register_data.password,
     )
 
-    # Create local user
+    # Create local user with active status (profile is complete via registration)
     user = User(
         external_id=firebase_user.uid,
         email=register_data.email,
         first_name=register_data.first_name,
         last_name=register_data.last_name,
-        is_active=True,
+        status=UserStatus.active,
     )
     try:
         session.add(user)
@@ -100,7 +101,7 @@ async def register(
 
     # Send verification email (best-effort: log failures but don't fail registration)
     try:
-        verification_link = firebase_auth.generate_email_verification_link(
+        verification_link = await firebase_auth.generate_email_verification_link(
             register_data.email
         )
         send_email_verification_email(register_data.email, verification_link)
@@ -117,8 +118,36 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=UserRead,
-    responses={**CommonResponses.UNAUTHORIZED, **CommonResponses.FORBIDDEN},
+    response_model=UserRead | ProfileIncompleteResponse,
+    responses={
+        **CommonResponses.UNAUTHORIZED,
+        **CommonResponses.FORBIDDEN,
+        200: {
+            "description": "Login successful or profile completion required",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "success": {
+                            "summary": "Full login success",
+                            "value": {
+                                "id": "uuid",
+                                "email": "user@example.com",
+                                "status": "active",
+                            },
+                        },
+                        "profile_incomplete": {
+                            "summary": "Profile completion required",
+                            "value": {
+                                "status": "profile_incomplete",
+                                "message": "Please complete your profile",
+                                "email": "user@example.com",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+    },
 )
 async def login(
     payload: EmailPasswordLoginRequest,
@@ -131,6 +160,13 @@ async def login(
 
     Uses Firebase Identity Toolkit to authenticate, then creates
     a session cookie for subsequent requests.
+
+    Returns:
+        - UserRead: If user exists and profile is complete (status=active)
+        - ProfileIncompleteResponse: If user needs to complete profile (status=pending)
+
+    Raises:
+        - UserInactiveError: If user status is 'inactive'
     """
     # Authenticate with Firebase (exceptions propagate automatically)
     firebase_user = await firebase_auth.sign_in_with_email_password(
@@ -144,11 +180,12 @@ async def login(
         expires_in=settings.session_expires_in,
     )
 
-    # Query or create local user
+    # Query local user
     user = session.exec(
         select(User).where(User.external_id == firebase_user.uid)
     ).first()
 
+    # If user doesn't exist locally, create with pending status
     if user is None:
         if not firebase_user.email:
             raise BadRequestError("Email not found in Firebase token")
@@ -156,16 +193,17 @@ async def login(
         user = User(
             external_id=firebase_user.uid,
             email=firebase_user.email,
-            is_active=True,
+            status=UserStatus.pending,
         )
         session.add(user)
         session.commit()
         session.refresh(user)
 
-    if not user.is_active:
+    # Check user status
+    if user.status == UserStatus.inactive:
         raise UserInactiveError()
 
-    # Set session cookie
+    # Set session cookie (needed for both complete and incomplete profiles)
     response.set_cookie(
         key="session",
         value=session_cookie,
@@ -174,6 +212,10 @@ async def login(
         secure=settings.is_secure_cookie,
         samesite="lax",
     )
+
+    # If profile is pending, return profile incomplete response
+    if user.status == UserStatus.pending:
+        return ProfileIncompleteResponse(email=user.email)
 
     return user
 
@@ -220,7 +262,7 @@ async def request_reset_password(
     Always returns success to prevent email enumeration attacks.
     """
     try:
-        reset_link = firebase_auth.generate_password_reset_link(request.email)
+        reset_link = await firebase_auth.generate_password_reset_link(request.email)
         send_password_reset_email(request.email, reset_link)
     except (UserNotFoundError, AppException, Exception) as e:
         # Log for monitoring, but suppress to prevent email enumeration
@@ -263,6 +305,37 @@ async def get_me(user: CurrentUserDep):
 
 
 @router.post(
+    "/complete-profile",
+    response_model=UserRead,
+    responses={**CommonResponses.UNAUTHORIZED, **CommonResponses.BAD_REQUEST},
+)
+async def complete_profile(
+    profile_data: CompleteProfileRequest,
+    user: CurrentUserDep,
+    session: SessionDep,
+):
+    """Complete user profile after Firebase login.
+
+    This endpoint is called when a user logs in via Firebase but doesn't have
+    a complete local profile (status='pending').
+
+    Updates the user's first_name, last_name and sets status to 'active'.
+    """
+    if user.status != UserStatus.pending:
+        raise BadRequestError("Profile is already complete")
+
+    user.first_name = profile_data.first_name
+    user.last_name = profile_data.last_name
+    user.status = UserStatus.active
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return user
+
+
+@router.post(
     "/request-verification-email",
     response_model=AuthMessage,
     responses={**CommonResponses.UNAUTHORIZED},
@@ -280,7 +353,9 @@ async def send_verification_email(
         return AuthMessage(message="Email is already verified")
 
     try:
-        verification_link = firebase_auth.generate_email_verification_link(user.email)
+        verification_link = await firebase_auth.generate_email_verification_link(
+            user.email
+        )
         send_email_verification_email(user.email, verification_link)
     except (UserNotFoundError, EmailVerificationError, AppException, Exception) as e:
         # Log for monitoring, but suppress to prevent revealing internal errors

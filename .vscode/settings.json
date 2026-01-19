@@ -1,7 +1,16 @@
 {
-  "ruff.configuration": "./ruff.toml",
-  "ruff.configurationPreference": "filesystemFirst",
   "[python]": {
-    "editor.defaultFormatter": "charliermarsh.ruff"
-  }
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true
+  },
+  "[json][jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[mdc][mdx][markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true
+  },
+  "ruff.configuration": "ruff.toml"
 }

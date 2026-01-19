@@ -66,30 +66,30 @@ make up
 
 ## Environment Variables
 
-| Variable                        | Required | Description                                                              |
-| ------------------------------- | :------: | ------------------------------------------------------------------------ |
-| `DB_USER`                       |   Yes    | PostgreSQL username                                                      |
-| `DB_PASSWORD`                   |   Yes    | PostgreSQL password                                                      |
-| `DB_HOST`                       |   Yes    | PostgreSQL host                                                          |
-| `DB_PORT`                       |   Yes    | PostgreSQL port                                                          |
-| `DB_NAME`                       |   Yes    | PostgreSQL database name                                                 |
-| `DATABASE_URL`                  |   Yes    | Full connection string (constructed from values above)                   |
-| `GOOGLE_APPLICATION_CREDENTIALS`|   Yes    | Path to Firebase service account JSON                                    |
-| `FIREBASE_API_KEY`              |   Yes    | Firebase API key for Identity Toolkit                                    |
-| `SESSION_SECRET_KEY`            |   Yes    | Secret key for admin sessions                                            |
-| `ADMIN_USERNAME`                |   Yes    | SQLAdmin username                                                        |
-| `ADMIN_PASSWORD`                |   Yes    | SQLAdmin password                                                        |
-| `RESEND_API_KEY`                |   No     | Resend API key for password reset emails                                 |
-| `ENV_NAME`                      |   No     | Environment name (default: `development`)                                |
-| `APP_DOMAIN`                    |   No     | Domain for emails (default: `resend.dev`)                                |
-| `CLIENT_URL`                    |   No     | Client app URL (default: `http://localhost:3000`)                        |
-| `CORS_ORIGINS`                  |   No     | Comma-separated allowed origins (default: `*`)                           |
-| `SESSION_EXPIRES_DAYS`          |   No     | Session cookie expiration in days (default: `5`, range: 1–14)            |
-| `LOG_LEVEL`                     |   No     | Log level (default: `INFO`)                                              |
-| `LOG_JSON`                      |   No     | JSON logs (`true`/`false`, default: `false`)                             |
-| `LOG_REQUESTS`                  |   No     | Log each HTTP request (default: `true`)                                  |
-| `LOG_UVICORN_ACCESS`            |   No     | Uvicorn access logs (default: `false`; enabled if set `true`)            |
-| `HTTPX_LOG_LEVEL`               |   No     | httpx log level (default: `WARNING`)                                     |
+| Variable                         | Required | Description                                                   |
+| -------------------------------- | :------: | ------------------------------------------------------------- |
+| `DB_USER`                        |   Yes    | PostgreSQL username                                           |
+| `DB_PASSWORD`                    |   Yes    | PostgreSQL password                                           |
+| `DB_HOST`                        |   Yes    | PostgreSQL host                                               |
+| `DB_PORT`                        |   Yes    | PostgreSQL port                                               |
+| `DB_NAME`                        |   Yes    | PostgreSQL database name                                      |
+| `DATABASE_URL`                   |   Yes    | Full connection string (constructed from values above)        |
+| `GOOGLE_APPLICATION_CREDENTIALS` |   Yes    | Path to Firebase service account JSON                         |
+| `FIREBASE_API_KEY`               |   Yes    | Firebase API key for Identity Toolkit                         |
+| `SESSION_SECRET_KEY`             |   Yes    | Secret key for admin sessions                                 |
+| `ADMIN_USERNAME`                 |   Yes    | SQLAdmin username                                             |
+| `ADMIN_PASSWORD`                 |   Yes    | SQLAdmin password                                             |
+| `RESEND_API_KEY`                 |    No    | Resend API key for password reset emails                      |
+| `ENV_NAME`                       |    No    | Environment name (default: `development`)                     |
+| `APP_DOMAIN`                     |    No    | Domain for emails (default: `resend.dev`)                     |
+| `CLIENT_URL`                     |    No    | Client app URL (default: `http://localhost:3000`)             |
+| `CORS_ORIGINS`                   |    No    | Comma-separated allowed origins (default: `*`)                |
+| `SESSION_EXPIRES_DAYS`           |    No    | Session cookie expiration in days (default: `5`, range: 1–14) |
+| `LOG_LEVEL`                      |    No    | Log level (default: `INFO`)                                   |
+| `LOG_JSON`                       |    No    | JSON logs (`true`/`false`, default: `false`)                  |
+| `LOG_REQUESTS`                   |    No    | Log each HTTP request (default: `true`)                       |
+| `LOG_UVICORN_ACCESS`             |    No    | Uvicorn access logs (default: `false`; enabled if set `true`) |
+| `HTTPX_LOG_LEVEL`                |    No    | httpx log level (default: `WARNING`)                          |
 
 ## Logging
 

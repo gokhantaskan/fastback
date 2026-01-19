@@ -4,12 +4,28 @@ SQLModel table definition for User.
 """
 
 import uuid
+from enum import Enum
 
 from pydantic import EmailStr
 from sqlmodel import Field, SQLModel
 
+from app.core.mixins import TimestampMixin
 
-class User(SQLModel, table=True):
+
+class UserStatus(str, Enum):
+    """User account status.
+
+    - pending: Logged in via Firebase but profile not completed
+    - active: Profile complete, account active
+    - inactive: Deactivated by admin
+    """
+
+    pending = "pending"
+    active = "active"
+    inactive = "inactive"
+
+
+class User(TimestampMixin, SQLModel, table=True):
     """User database model.
 
     Note: external_id is internal-only (Firebase UID) and should
@@ -24,5 +40,5 @@ class User(SQLModel, table=True):
     email_verified: bool = Field(default=False)
     first_name: str = Field(default="", max_length=50)
     last_name: str = Field(default="", max_length=50)
-    is_active: bool = Field(default=True)
+    status: UserStatus = Field(default=UserStatus.pending, max_length=20)
     is_admin: bool = Field(default=False)

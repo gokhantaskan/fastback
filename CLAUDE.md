@@ -8,24 +8,30 @@ This guide fully encompasses and distills proven FastAPI best practices used in 
 Use domain-based organization for scalability and long-term maintainability.
 
 ```
-src/
-├── auth/
+app/
+├── <domain>/
 │   ├── router.py        # Endpoints
 │   ├── schemas.py       # Pydantic models
 │   ├── models.py        # DB models
 │   ├── service.py       # Business logic
 │   ├── dependencies.py  # Route dependencies
-│   ├── exceptions.py    # Domain exceptions
-│   ├── constants.py     # Error codes, constants
-│   ├── utils.py         # Non-business helpers
-│   └── config.py        # Domain settings
-├── posts/
-│   └── ...
-├── config.py            # Global config
-├── database.py          # DB connection
-├── exceptions.py        # Global exceptions
-├── pagination.py        # Shared utilities
+│   └── exceptions.py    # Domain exceptions
+├── core/
+│   ├── settings.py      # Application settings
+│   ├── exceptions.py    # Global exceptions
+│   ├── deps.py          # Shared dependencies
+│   └── ...              # Other shared utilities
+├── db/
+│   └── engine.py        # Database connection
+├── alembic/
+│   ├── env.py
+│   └── versions/        # Migration files
+├── router.py            # Main API router
 └── main.py              # App initialization
+tests/
+├── <domain>/
+├── conftest.py          # Test fixtures
+└── test_main.py
 ```
 
 ### Cross-module imports
@@ -35,14 +41,14 @@ Cross-module imports must be explicit:
 **✅ DO**
 
 ```python
-from src.auth import constants as auth_constants
-from src.notifications import service as notification_service
+from app.auth import service as auth_service
+from app.core import settings
 ```
 
 **❌ DON'T**
 
 ```python
-from src.auth.constants import *
+from app.auth.service import *
 ```
 
 ## Async Routes
@@ -82,8 +88,8 @@ async def best():
 | I/O with sync library  | def route OR run_in_threadpool() |
 | CPU-intensive          | Celery / multiprocessing         |
 
-⚠ Threadpools are bounded and expensive.
-Overuse can exhaust workers and degrade performance.
+> [!WARNING] Threadpools are bounded and expensive.
+> Overuse can exhaust workers and degrade performance.
 
 ### CPU-Intensive Work
 

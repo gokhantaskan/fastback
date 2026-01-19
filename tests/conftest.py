@@ -16,7 +16,7 @@ from app.auth.service import (
 from app.core.settings import Settings, get_settings
 from app.db.engine import get_session
 from app.main import app
-from app.user.models import User
+from app.user.models import User, UserStatus
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -72,7 +72,7 @@ def test_user_fixture(session: Session):
         email="test@example.com",
         first_name="Test",
         last_name="User",
-        is_active=True,
+        status=UserStatus.active,
     )
     session.add(user)
     session.commit()
@@ -88,7 +88,21 @@ def inactive_user_fixture(session: Session):
         email="inactive@example.com",
         first_name="Inactive",
         last_name="User",
-        is_active=False,
+        status=UserStatus.inactive,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@pytest.fixture(name="pending_user")
+def pending_user_fixture(session: Session):
+    """Create a pending test user (profile incomplete)."""
+    user = User(
+        external_id="pending-uid-789",
+        email="pending@example.com",
+        status=UserStatus.pending,
     )
     session.add(user)
     session.commit()
@@ -104,7 +118,7 @@ def admin_user_fixture(session: Session):
         email="admin@example.com",
         first_name="Admin",
         last_name="User",
-        is_active=True,
+        status=UserStatus.active,
         is_admin=True,
     )
     session.add(user)

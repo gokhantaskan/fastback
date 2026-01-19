@@ -99,3 +99,18 @@ class ConfirmEmailChangeRequest(BaseModel):
     """Request schema for confirming email change with oobCode."""
 
     oob_code: str
+
+
+class ProfileIncompleteResponse(BaseModel):
+    """Response when login succeeds but user profile needs completion.
+
+    Returned when:
+    - User exists in Firebase but not in local DB (first login)
+    - User exists locally but status is 'pending'
+
+    Frontend should redirect to profile completion flow.
+    """
+
+    status: str = "profile_incomplete"
+    message: str = "Please complete your profile"
+    email: EmailStr

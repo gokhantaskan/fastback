@@ -9,9 +9,12 @@ Security notes:
 """
 
 import uuid
+from datetime import datetime
 
-from pydantic import EmailStr
+from pydantic import EmailStr, Field, field_serializer
 from sqlmodel import SQLModel
+
+from app.user.models import UserStatus
 
 
 class UserBase(SQLModel):
@@ -35,6 +38,14 @@ class UserPublicRead(UserBase):
     """
 
     id: uuid.UUID
+    status: UserStatus
+    created_at: datetime
+    updated_at: datetime
+
+    @field_serializer("created_at", "updated_at")
+    def serialize_datetime(self, value: datetime) -> str:
+        """Format datetime as ISO 8601 with Z suffix."""
+        return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class UserCreate(SQLModel):
@@ -49,6 +60,7 @@ class UserCreate(SQLModel):
     email_verified: bool = False
     first_name: str = ""
     last_name: str = ""
+    status: UserStatus = UserStatus.pending
 
 
 class UserRead(UserPublicRead):
@@ -58,7 +70,6 @@ class UserRead(UserPublicRead):
     and privilege level. Use only for admin-protected endpoints.
     """
 
-    is_active: bool
     is_admin: bool
 
 
@@ -66,7 +77,7 @@ class UserUpdateMe(SQLModel):
     """Schema for users updating their own profile.
 
     Intentionally limited to prevent privilege escalation.
-    Users cannot modify: email, is_active, is_admin, external_id.
+    Users cannot modify: email, status, is_admin, external_id.
     """
 
     first_name: str | None = None
@@ -83,4 +94,15 @@ class UserUpdate(SQLModel):
     email: EmailStr | None = None
     first_name: str | None = None
     last_name: str | None = None
-    is_active: bool | None = None
+    status: UserStatus | None = None
+
+
+class CompleteProfileRequest(SQLModel):
+    """Request schema for completing user profile.
+
+    Used when a user logs in via Firebase but doesn't have a local profile,
+    or when their profile is in 'pending' status.
+    """
+
+    first_name: str = Field(min_length=1, max_length=50)
+    last_name: str = Field(min_length=1, max_length=50)

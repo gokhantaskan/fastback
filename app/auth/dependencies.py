@@ -20,7 +20,7 @@ from app.auth.service import FirebaseAuthService, get_firebase_auth_service
 from app.core.exceptions import AppException
 from app.db.engine import get_session
 from app.user.exceptions import UserInactiveError, UserNotFoundError
-from app.user.models import User
+from app.user.models import User, UserStatus
 
 security = HTTPBearer(auto_error=False)
 
@@ -86,7 +86,7 @@ def get_current_user(
     if user is None:
         raise UserNotFoundError()
 
-    if not user.is_active:
+    if user.status == UserStatus.inactive:
         raise UserInactiveError()
 
     return user

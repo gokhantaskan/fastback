@@ -33,7 +33,7 @@ async def update_me(
     """Update current authenticated user's profile.
 
     Users can only update their own first_name and last_name.
-    For security, users cannot modify email, is_active, or is_admin.
+    For security, users cannot modify email, status, or is_admin.
     """
     update_data = user_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -81,7 +81,7 @@ async def get_user(user_id: uuid.UUID, session: SessionDep):
 async def update_user(user_id: uuid.UUID, user_update: UserUpdate, session: SessionDep):
     """Update a user by ID. Admin only.
 
-    Admins can update email, first_name, last_name, and is_active.
+    Admins can update email, first_name, last_name, and status.
     is_admin changes require superuser privileges (not implemented here).
     """
     user = session.get(User, user_id)
