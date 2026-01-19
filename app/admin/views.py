@@ -8,7 +8,15 @@ class UserAdmin(ModelView, model=User):
     name_plural = "Users"
 
     column_list = [
-        *User.model_fields.keys(),
+        User.email,
+        User.first_name,
+        User.last_name,
+        User.status,
+        User.id,
+        User.external_id,
+        User.is_admin,
+        User.created_at,
+        User.updated_at,
     ]
 
     column_searchable_list = [
@@ -18,6 +26,4 @@ class UserAdmin(ModelView, model=User):
         User.external_id,
     ]
 
-    column_sortable_list = [
-        *User.model_fields.keys(),
-    ]
+    column_sortable_list = [getattr(User, field) for field in User.model_fields]

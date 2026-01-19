@@ -9,7 +9,7 @@ Security notes:
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import EmailStr, Field, field_serializer
 from sqlmodel import SQLModel
@@ -44,8 +44,20 @@ class UserPublicRead(UserBase):
 
     @field_serializer("created_at", "updated_at")
     def serialize_datetime(self, value: datetime) -> str:
-        """Format datetime as ISO 8601 with Z suffix."""
-        return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        """Format datetime as ISO 8601 string in UTC.
+
+        Converts datetime to UTC timezone and formats with Z suffix
+        (e.g. 2026-01-19T12:34:56Z).
+        """
+        # Convert to UTC if timezone-aware, otherwise assume UTC
+        if value.tzinfo is not None:
+            utc_value = value.astimezone(UTC)
+        else:
+            # Naive datetime - assume it's already UTC (from TimestampMixin)
+            utc_value = value.replace(tzinfo=UTC)
+
+        # Normalize to whole seconds and format with Z suffix
+        return utc_value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 class UserCreate(SQLModel):

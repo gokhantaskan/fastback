@@ -319,7 +319,7 @@ def test_login_existing_user(session: Session, test_user: User):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -353,7 +353,7 @@ def test_login_unregistered_user_creates_pending_user(session: Session):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -390,7 +390,7 @@ def test_login_inactive_user(session: Session, inactive_user: User):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -416,7 +416,7 @@ def test_login_unregistered_user_no_email_in_token(session: Session):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -431,7 +431,9 @@ def test_login_unregistered_user_no_email_in_token(session: Session):
     assert "Email not found" in response.json()["message"]
 
 
-def test_login_pending_user_returns_profile_incomplete(session: Session, pending_user: User):
+def test_login_pending_user_returns_profile_incomplete(
+    session: Session, pending_user: User
+):
     """Test POST /auth/login with pending user returns profile_incomplete."""
     mock_service = create_mock_firebase_service(
         sign_in_result=FirebaseUser(
@@ -443,7 +445,7 @@ def test_login_pending_user_returns_profile_incomplete(session: Session, pending
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -468,7 +470,7 @@ def test_login_invalid_credentials(session: Session):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -489,7 +491,7 @@ def test_login_user_disabled(session: Session):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -510,7 +512,7 @@ def test_login_rate_limited(session: Session):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -531,7 +533,7 @@ def test_login_provider_error(session: Session):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -559,7 +561,7 @@ def test_login_session_cookie_error(session: Session, test_user: User):
 
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_firebase_auth_service] = lambda: mock_service
-    app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+    app.dependency_overrides[get_settings] = create_mock_settings
     client = TestClient(app)
 
     response = client.post(
@@ -690,7 +692,7 @@ def test_confirm_password_reset(session: Session):
         )
 
         app.dependency_overrides[get_session] = lambda: session
-        app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+        app.dependency_overrides[get_settings] = create_mock_settings
         client = TestClient(app)
 
         response = client.post(
@@ -719,7 +721,7 @@ def test_confirm_password_reset_expired_code(session: Session):
         )
 
         app.dependency_overrides[get_session] = lambda: session
-        app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+        app.dependency_overrides[get_settings] = create_mock_settings
         client = TestClient(app)
 
         response = client.post(
@@ -748,7 +750,7 @@ def test_confirm_password_reset_invalid_code(session: Session):
         )
 
         app.dependency_overrides[get_session] = lambda: session
-        app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+        app.dependency_overrides[get_settings] = create_mock_settings
         client = TestClient(app)
 
         response = client.post(
@@ -777,7 +779,7 @@ def test_confirm_password_reset_weak_password(session: Session):
         )
 
         app.dependency_overrides[get_session] = lambda: session
-        app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+        app.dependency_overrides[get_settings] = create_mock_settings
         client = TestClient(app)
 
         response = client.post(
@@ -831,7 +833,7 @@ def test_confirm_password_reset_generic_error(session: Session):
         )
 
         app.dependency_overrides[get_session] = lambda: session
-        app.dependency_overrides[get_settings] = lambda: create_mock_settings()
+        app.dependency_overrides[get_settings] = create_mock_settings
         client = TestClient(app)
 
         response = client.post(
@@ -1151,10 +1153,7 @@ def test_complete_profile_success(
     assert pending_user.status == UserStatus.active
 
 
-def test_complete_profile_already_active(
-    client: TestClient,
-    test_user: User,
-):
+def test_complete_profile_already_active(client: TestClient):
     """Test POST /auth/complete-profile with already active user returns 400."""
     response = client.post(
         "/auth/complete-profile",
