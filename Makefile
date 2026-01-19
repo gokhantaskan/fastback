@@ -39,7 +39,8 @@ sh: ## Shell into container
 	$(COMPOSE) exec $(SERVICE) sh
 
 format: ## Format code (ruff)
-	$(COMPOSE) exec $(SERVICE) ruff format .
+	$(COMPOSE) exec $(SERVICE) ruff format . && \
+	./scripts/format.sh
 
 lint: ## Lint code (ruff) (ARGS=--unsafe etc.)
 	$(COMPOSE) exec $(SERVICE) ruff check . $(ARGS)

@@ -7,6 +7,23 @@ FastBack uses Firebase Authentication for identity management with a local datab
 1. **Session Cookie** (preferred for web apps) - Client logs in via `/auth/login` with email/password, backend sets an HttpOnly session cookie
 2. **Bearer Token** (for API clients, mobile apps) - Client authenticates with Firebase directly, sends ID token in Authorization header
 
+## User Status
+
+Users have a `status` field with three possible values:
+
+| Status     | Description                                      |
+| ---------- | ------------------------------------------------ |
+| `pending`  | Logged in via Firebase but profile not completed |
+| `active`   | Profile complete, account active                 |
+| `inactive` | Deactivated by admin                             |
+
+**Status Transitions:**
+
+- Registration with full details → `active`
+- Firebase-first login (no local profile) → `pending`
+- Profile completion → `pending` → `active`
+- Admin deactivation → `inactive`
+
 ## Authentication Flow
 
 Session cookie authentication takes priority when both methods are present.
@@ -102,18 +119,56 @@ sequenceDiagram
 
         Backend->>Database: Query user by external_id
         alt User exists
-            alt User active
+            alt User status = active
                 Backend-->>Client: 200 OK + UserRead<br/>Set-Cookie: session
-            else User inactive
+            else User status = pending
+                Backend-->>Client: 200 OK + ProfileIncompleteResponse<br/>Set-Cookie: session
+            else User status = inactive
                 Backend-->>Client: 403 Forbidden
             end
         else User doesn't exist
-            Backend->>Database: Auto-create user
+            Backend->>Database: Create user (status=pending)
             Database-->>Backend: New user
-            Backend-->>Client: 200 OK + UserRead<br/>Set-Cookie: session
+            Backend-->>Client: 200 OK + ProfileIncompleteResponse<br/>Set-Cookie: session
         end
     end
 ```
+
+## Profile Completion Flow
+
+When a user logs in but has `status=pending`, they must complete their profile before accessing protected resources.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Backend
+    participant Database
+
+    Note over Client,Database: After login returns ProfileIncompleteResponse
+    Client->>Backend: POST /auth/complete-profile<br/>Cookie: session<br/>{first_name, last_name}
+
+    alt User status != pending
+        Backend-->>Client: 400 Bad Request<br/>"Profile is already complete"
+    else User status = pending
+        Backend->>Database: Update user<br/>first_name, last_name, status=active
+        Database-->>Backend: Updated user
+        Backend-->>Client: 200 OK + UserRead
+    end
+
+    Note over Client,Database: User can now access all protected resources
+```
+
+**Profile Completion Required When:**
+
+- User exists in Firebase but not in local DB (first login via Firebase SDK)
+- User exists locally but `status=pending`
+
+**Frontend Handling:**
+
+1. Check login response for `status: "profile_incomplete"`
+2. Redirect to profile completion form
+3. Submit `POST /auth/complete-profile` with name fields
+4. On success, user is fully authenticated with `status=active`
 
 ## Logout Flow
 
@@ -169,9 +224,9 @@ sequenceDiagram
     Backend->>Database: Query user by external_id
     alt User not found
         Backend-->>Client: 404 Not Found
-    else User inactive
+    else User status = inactive
         Backend-->>Client: 403 Forbidden
-    else User active
+    else User status = active or pending
         Backend-->>Client: 200 OK + User data
     end
 ```
@@ -336,20 +391,21 @@ sequenceDiagram
 
 ### Authentication Endpoints
 
-| Endpoint                           | Method | Auth   | Description                                      |
-| ---------------------------------- | ------ | ------ | ------------------------------------------------ |
-| `/auth/register`                   | POST   | None   | Create Firebase and local user (signup)          |
-| `/auth/login`                      | POST   | None   | Login with email/password, sets session cookie   |
-| `/auth/logout`                     | POST   | Cookie | Clear session cookie and revoke refresh tokens   |
-| `/auth/request-password-reset`     | POST   | None   | Send password reset email via Resend             |
-| `/auth/confirm-password-reset`     | POST   | None   | Complete reset with oobCode and new password     |
-| `/auth/request-verification-email` | POST   | User   | Send email verification link                     |
-| `/auth/confirm-verification-email` | POST   | None   | Verify email with oobCode                        |
-| `/auth/update-password`            | POST   | User   | Update password (requires current password)      |
-| `/auth/request-email-change`       | POST   | User   | Request email change (sends to current email)    |
-| `/auth/confirm-email-change`       | POST   | None   | Confirm email change with oobCode                |
-| `/auth/me`                         | GET    | User   | Get current user                                 |
-| `/auth/revoke-tokens`              | POST   | User   | Revoke all refresh tokens (sign out all devices) |
+| Endpoint                           | Method | Auth   | Description                                         |
+| ---------------------------------- | ------ | ------ | --------------------------------------------------- |
+| `/auth/register`                   | POST   | None   | Create Firebase and local user (status=active)      |
+| `/auth/login`                      | POST   | None   | Login with email/password, sets session cookie      |
+| `/auth/logout`                     | POST   | Cookie | Clear session cookie and revoke refresh tokens      |
+| `/auth/complete-profile`           | POST   | User   | Complete pending profile (status: pending → active) |
+| `/auth/me`                         | GET    | User   | Get current user                                    |
+| `/auth/request-password-reset`     | POST   | None   | Send password reset email via Resend                |
+| `/auth/confirm-password-reset`     | POST   | None   | Complete reset with oobCode and new password        |
+| `/auth/request-verification-email` | POST   | User   | Send email verification link                        |
+| `/auth/confirm-verification-email` | POST   | None   | Verify email with oobCode                           |
+| `/auth/update-password`            | POST   | User   | Update password (requires current password)         |
+| `/auth/request-email-change`       | POST   | User   | Request email change (sends to current email)       |
+| `/auth/confirm-email-change`       | POST   | None   | Confirm email change with oobCode                   |
+| `/auth/revoke-tokens`              | POST   | User   | Revoke all refresh tokens (sign out all devices)    |
 
 ### User Management Endpoints
 
@@ -365,7 +421,7 @@ sequenceDiagram
 
 ### UserRead
 
-Response schema returned by `/auth/login` and `/auth/me`:
+Response schema returned by `/auth/login` (for active users), `/auth/me`, and `/auth/complete-profile`:
 
 ```json
 {
@@ -374,8 +430,10 @@ Response schema returned by `/auth/login` and `/auth/me`:
   "first_name": "John",
   "last_name": "Doe",
   "email_verified": false,
-  "is_active": true,
-  "is_admin": false
+  "status": "active",
+  "is_admin": false,
+  "created_at": "2026-01-19T12:34:56Z",
+  "updated_at": "2026-01-19T12:34:56Z"
 }
 ```
 
@@ -383,11 +441,47 @@ Response schema returned by `/auth/login` and `/auth/me`:
 
 - `id` (UUID): User's unique identifier
 - `email` (string): User's email address
-- `first_name` (string): User's first name
-- `last_name` (string): User's last name
+- `first_name` (string | null): User's first name
+- `last_name` (string | null): User's last name
 - `email_verified` (boolean): Whether the user's email is verified (default: `false`)
-- `is_active` (boolean): Whether the user account is active (default: `true`)
+- `status` (string): User account status (`pending`, `active`, `inactive`)
 - `is_admin` (boolean): Whether the user has admin privileges (default: `false`)
+- `created_at` (string): ISO 8601 datetime when user was created
+- `updated_at` (string): ISO 8601 datetime when user was last updated
+
+### ProfileIncompleteResponse
+
+Response returned by `/auth/login` when user profile needs completion (status=pending):
+
+```json
+{
+  "status": "profile_incomplete",
+  "message": "Please complete your profile",
+  "email": "user@example.com"
+}
+```
+
+**Fields:**
+
+- `status` (string): Always `"profile_incomplete"`
+- `message` (string): Human-readable message for the client
+- `email` (string): User's email address (for display in profile completion form)
+
+### CompleteProfileRequest
+
+Request schema for `/auth/complete-profile`:
+
+```json
+{
+  "first_name": "John",
+  "last_name": "Doe"
+}
+```
+
+**Fields:**
+
+- `first_name` (string): User's first name (1-50 characters, required)
+- `last_name` (string): User's last name (1-50 characters, required)
 
 ### AuthMessage
 
@@ -424,8 +518,18 @@ Response schema for `/auth/confirm-verification-email`:
 
 - **None**: No authentication required
 - **Cookie**: Requires valid session cookie (from `/auth/login`)
-- **User**: Requires valid session cookie OR Bearer token + user must exist in database + user must be active
+- **User**: Requires valid session cookie OR Bearer token + user must exist in database + user must not be inactive
 - **Admin**: Requires User auth level + user must have `is_admin = true`
+
+**Status Behavior:**
+
+| Status     | Can Authenticate?  | Can Access Protected Routes?      |
+| ---------- | ------------------ | --------------------------------- |
+| `pending`  | Yes                | Yes (but should complete profile) |
+| `active`   | Yes                | Yes                               |
+| `inactive` | No (403 Forbidden) | No                                |
+
+Note: Users with `status=pending` can access protected routes but should be prompted to complete their profile via the frontend.
 
 ## Session Cookie Properties
 
