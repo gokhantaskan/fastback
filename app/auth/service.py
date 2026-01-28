@@ -37,6 +37,8 @@ from app.core.exceptions import (
     ProviderError,
     RateLimitError,
 )
+from app.core.http import get_firebase_client
+from app.core.retry import with_retry
 from app.user.exceptions import (
     EmailExistsError,
     UserNotFoundError,
@@ -178,13 +180,14 @@ class FirebaseAuthService:
         return self._api_key
 
     async def _make_identity_toolkit_request(
-        self, endpoint: str, payload: dict[str, Any]
+        self, endpoint: str, payload: dict[str, Any], *, retry: bool = False
     ) -> dict[str, Any]:
         """Make a request to Identity Toolkit REST API.
 
         Args:
             endpoint: API endpoint path (e.g., "v1/accounts:signInWithPassword")
             payload: Request payload
+            retry: Whether to retry on transient network errors
 
         Returns:
             Response JSON data
@@ -197,9 +200,20 @@ class FirebaseAuthService:
         """
         api_key = self._ensure_api_key()
         url = f"{self._identity_toolkit_base_url}/{endpoint}?key={api_key}"
+        client = get_firebase_client()
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload)
+        async def do_request() -> httpx.Response:
+            return await client.post(url, json=payload)
+
+        try:
+            if retry:
+                response = await with_retry(
+                    do_request, attempts=2, exceptions=(httpx.RequestError,)
+                )
+            else:
+                response = await do_request()
+        except httpx.RequestError as e:
+            raise ProviderError("Authentication provider unavailable") from e
 
         if response.status_code != 200:
             self._handle_identity_toolkit_error(response)
@@ -248,18 +262,36 @@ class FirebaseAuthService:
         """
         access_token = self._get_admin_access_token()
         url = f"{self._identity_toolkit_base_url}/{endpoint}"
+        client = get_firebase_client()
 
-        async with httpx.AsyncClient() as client:
+        try:
             response = await client.post(
                 url,
                 json=payload,
                 headers={"Authorization": f"Bearer {access_token}"},
             )
+        except httpx.RequestError as e:
+            raise ProviderError("Authentication provider unavailable") from e
 
         if response.status_code != 200:
             self._handle_identity_toolkit_error(response)
 
         return response.json()
+
+    @staticmethod
+    def _parse_retry_after(value: str | None) -> int | None:
+        """Parse Retry-After header into seconds."""
+        if not value:
+            return None
+        with contextlib.suppress(ValueError):
+            return int(value)
+        return None
+
+    @staticmethod
+    def _sanitize_error_code(error_message: str) -> str:
+        """Extract a safe, non-sensitive error code for logging."""
+        match = re.match(r"[A-Z0-9_]+", error_message)
+        return match.group(0) if match else "UNKNOWN"
 
     def _handle_identity_toolkit_error(self, response: httpx.Response) -> None:
         """Handle error response from Identity Toolkit REST API."""
@@ -271,16 +303,31 @@ class FirebaseAuthService:
             error_data = response.json()
             error_message = error_data.get("error", {}).get("message", "Unknown error")
         except ValueError as e:
+            if response.status_code == 429:
+                retry_after = self._parse_retry_after(
+                    response.headers.get("Retry-After")
+                )
+                raise RateLimitError(
+                    "Too many attempts, try again later", retry_after=retry_after
+                ) from e
             raise ProviderError(
                 "Authentication provider returned an invalid response"
             ) from e
 
-        # Log Firebase error for debugging
+        # Log sanitized error code for debugging (avoid sensitive data)
+        error_code = self._sanitize_error_code(error_message)
         logger.info(
-            "Identity Toolkit error: status=%s, message=%s",
+            "Identity Toolkit error: status=%s, code=%s",
             response.status_code,
-            error_message,
+            error_code,
         )
+
+        # Handle HTTP 429 explicitly
+        if response.status_code == 429:
+            retry_after = self._parse_retry_after(response.headers.get("Retry-After"))
+            raise RateLimitError(
+                "Too many attempts, try again later", retry_after=retry_after
+            )
 
         if error_message in _INVALID_CREDENTIALS_MESSAGES:
             raise InvalidCredentialsError("Invalid email or password")
@@ -291,15 +338,17 @@ class FirebaseAuthService:
         if error_message == "TOO_MANY_ATTEMPTS_TRY_LATER":
             raise RateLimitError("Too many attempts, try again later")
 
-        if "WEAK_PASSWORD" in error_message:
-            raise WeakPasswordError("Password is too weak")
-
+        # Check PASSWORD_DOES_NOT_MEET_REQUIREMENTS before WEAK_PASSWORD
+        # (more specific first)
         if "PASSWORD_DOES_NOT_MEET_REQUIREMENTS" in error_message:
             requirements = self._extract_password_requirements(error_message)
             raise PasswordPolicyError(
                 "Password does not meet requirements",
                 requirements=requirements,
             )
+
+        if "WEAK_PASSWORD" in error_message:
+            raise WeakPasswordError("Password is too weak")
 
         if "CREDENTIAL_TOO_OLD_LOGIN_AGAIN" in error_message:
             raise InvalidCredentialsError(
@@ -352,6 +401,7 @@ class FirebaseAuthService:
                 "password": password,
                 "returnSecureToken": True,
             },
+            retry=True,
         )
 
         id_token = data.get("idToken")

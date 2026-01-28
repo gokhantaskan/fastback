@@ -73,7 +73,12 @@ class RateLimitError(AppException):
     status_code = 429
     error_type = "rate_limit_exceeded"
 
-    def __init__(self, message: str = "Too many requests, please try again later"):
+    def __init__(
+        self,
+        message: str = "Too many requests, please try again later",
+        retry_after: int | None = None,
+    ):
+        self.retry_after = retry_after
         super().__init__(message)
 
 
