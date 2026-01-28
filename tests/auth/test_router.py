@@ -685,11 +685,10 @@ def test_confirm_password_reset(session: Session):
     mock_response.status_code = 200
     mock_response.json.return_value = {"email": "test@example.com"}
 
-    with patch("app.auth.service.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
-        )
+    with patch("app.auth.service.get_firebase_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         app.dependency_overrides[get_session] = lambda: session
         app.dependency_overrides[get_settings] = create_mock_settings
@@ -712,13 +711,13 @@ def test_confirm_password_reset_expired_code(session: Session):
 
     mock_response = MagicMock()
     mock_response.status_code = 400
+    mock_response.headers = {}
     mock_response.json.return_value = {"error": {"message": "EXPIRED_OOB_CODE"}}
 
-    with patch("app.auth.service.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
-        )
+    with patch("app.auth.service.get_firebase_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         app.dependency_overrides[get_session] = lambda: session
         app.dependency_overrides[get_settings] = create_mock_settings
@@ -741,13 +740,13 @@ def test_confirm_password_reset_invalid_code(session: Session):
 
     mock_response = MagicMock()
     mock_response.status_code = 400
+    mock_response.headers = {}
     mock_response.json.return_value = {"error": {"message": "INVALID_OOB_CODE"}}
 
-    with patch("app.auth.service.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
-        )
+    with patch("app.auth.service.get_firebase_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         app.dependency_overrides[get_session] = lambda: session
         app.dependency_overrides[get_settings] = create_mock_settings
@@ -770,13 +769,13 @@ def test_confirm_password_reset_weak_password(session: Session):
 
     mock_response = MagicMock()
     mock_response.status_code = 400
+    mock_response.headers = {}
     mock_response.json.return_value = {"error": {"message": "WEAK_PASSWORD"}}
 
-    with patch("app.auth.service.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
-        )
+    with patch("app.auth.service.get_firebase_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         app.dependency_overrides[get_session] = lambda: session
         app.dependency_overrides[get_settings] = create_mock_settings
@@ -824,13 +823,13 @@ def test_confirm_password_reset_generic_error(session: Session):
 
     mock_response = MagicMock()
     mock_response.status_code = 400
+    mock_response.headers = {}
     mock_response.json.return_value = {"error": {"message": "SOME_OTHER_ERROR"}}
 
-    with patch("app.auth.service.httpx.AsyncClient") as mock_client:
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-            return_value=mock_response
-        )
+    with patch("app.auth.service.get_firebase_client") as mock_get_client:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         app.dependency_overrides[get_session] = lambda: session
         app.dependency_overrides[get_settings] = create_mock_settings
