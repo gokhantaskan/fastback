@@ -25,9 +25,9 @@ async def lifespan(_: FastAPI):
     init_resend()
     yield
     # Cleanup HTTP clients
-    from app.core.http import get_firebase_client
+    from app.core.http import close_firebase_client
 
-    await get_firebase_client().aclose()
+    await close_firebase_client()
 
 
 app = FastAPI(title="FastBack", version="0.1.0", lifespan=lifespan)

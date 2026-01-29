@@ -4,8 +4,6 @@ Provides per-service HTTP clients with connection pooling, timeouts,
 and proper resource management.
 """
 
-from functools import lru_cache
-
 import httpx
 
 # Default timeout configuration (seconds)
@@ -13,6 +11,9 @@ DEFAULT_CONNECT_TIMEOUT = 5.0
 DEFAULT_READ_TIMEOUT = 10.0
 DEFAULT_WRITE_TIMEOUT = 10.0
 DEFAULT_POOL_TIMEOUT = 5.0
+
+# Module-level client storage for singleton pattern
+_firebase_client: httpx.AsyncClient | None = None
 
 
 def create_http_client(
@@ -53,14 +54,35 @@ def create_http_client(
     )
 
 
-@lru_cache
 def get_firebase_client() -> httpx.AsyncClient:
-    """Get cached HTTP client for Firebase Identity Toolkit.
+    """Get singleton HTTP client for Firebase Identity Toolkit.
+
+    Uses lazy initialization with module-level storage for proper
+    resource management. The client should be closed via close_firebase_client()
+    during application shutdown.
 
     Tuned for high concurrency authentication requests.
+
+    Returns:
+        Configured httpx.AsyncClient instance for Firebase API calls
     """
-    return create_http_client(
-        base_url="https://identitytoolkit.googleapis.com",
-        max_connections=100,
-        max_keepalive_connections=20,
-    )
+    global _firebase_client
+    if _firebase_client is None:
+        _firebase_client = create_http_client(
+            base_url="https://identitytoolkit.googleapis.com",
+            max_connections=100,
+            max_keepalive_connections=20,
+        )
+    return _firebase_client
+
+
+async def close_firebase_client() -> None:
+    """Close the Firebase HTTP client and release resources.
+
+    Should be called during application shutdown to properly close
+    connections and release resources.
+    """
+    global _firebase_client
+    if _firebase_client is not None:
+        await _firebase_client.aclose()
+        _firebase_client = None

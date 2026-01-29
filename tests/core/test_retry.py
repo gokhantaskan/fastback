@@ -167,3 +167,23 @@ class TestWithRetry:
 
         assert result == "success"
         assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_raises_value_error_for_zero_attempts(self):
+        """Test that attempts=0 raises ValueError."""
+
+        async def dummy():
+            return "should not run"
+
+        with pytest.raises(ValueError, match="attempts must be at least 1"):
+            await with_retry(dummy, attempts=0)
+
+    @pytest.mark.asyncio
+    async def test_raises_value_error_for_negative_attempts(self):
+        """Test that negative attempts raises ValueError."""
+
+        async def dummy():
+            return "should not run"
+
+        with pytest.raises(ValueError, match="attempts must be at least 1"):
+            await with_retry(dummy, attempts=-1)

@@ -1,36 +1,61 @@
 """Tests for app/core/http.py - HTTP client factory."""
 
+import anyio
 import httpx
+import pytest
 
+import app.core.http as http_module
 from app.core.http import (
     DEFAULT_CONNECT_TIMEOUT,
     DEFAULT_POOL_TIMEOUT,
     DEFAULT_READ_TIMEOUT,
     DEFAULT_WRITE_TIMEOUT,
+    close_firebase_client,
     create_http_client,
     get_firebase_client,
 )
 
 
+async def _close_and_reset_firebase_client_async() -> None:
+    """Close and reset the Firebase client singleton (async implementation)."""
+    if http_module._firebase_client is not None:
+        await http_module._firebase_client.aclose()
+    http_module._firebase_client = None
+
+
+def _close_and_reset_firebase_client() -> None:
+    """Close and reset the Firebase client singleton (for test cleanup)."""
+    anyio.run(_close_and_reset_firebase_client_async)
+
+
 class TestCreateHttpClient:
     """Unit tests for create_http_client factory."""
 
-    def test_returns_async_client(self):
+    @pytest.mark.asyncio
+    async def test_returns_async_client(self):
         """Test that factory returns an httpx.AsyncClient instance."""
         client = create_http_client(base_url="https://example.com")
-        assert isinstance(client, httpx.AsyncClient)
+        try:
+            assert isinstance(client, httpx.AsyncClient)
+        finally:
+            await client.aclose()
 
-    def test_default_timeouts(self):
+    @pytest.mark.asyncio
+    async def test_default_timeouts(self):
         """Test that default timeout values are applied."""
         client = create_http_client(base_url="https://example.com")
-        timeout = client.timeout
+        try:
+            timeout = client.timeout
 
-        assert timeout.connect == DEFAULT_CONNECT_TIMEOUT
-        assert timeout.read == DEFAULT_READ_TIMEOUT
-        assert timeout.write == DEFAULT_WRITE_TIMEOUT
-        assert timeout.pool == DEFAULT_POOL_TIMEOUT
+            assert timeout.connect == DEFAULT_CONNECT_TIMEOUT
+            assert timeout.read == DEFAULT_READ_TIMEOUT
+            assert timeout.write == DEFAULT_WRITE_TIMEOUT
+            assert timeout.pool == DEFAULT_POOL_TIMEOUT
+        finally:
+            await client.aclose()
 
-    def test_custom_timeouts(self):
+    @pytest.mark.asyncio
+    async def test_custom_timeouts(self):
         """Test that custom timeout values are applied."""
         client = create_http_client(
             base_url="https://example.com",
@@ -39,74 +64,147 @@ class TestCreateHttpClient:
             write_timeout=3.0,
             pool_timeout=4.0,
         )
-        timeout = client.timeout
+        try:
+            timeout = client.timeout
 
-        assert timeout.connect == 1.0
-        assert timeout.read == 2.0
-        assert timeout.write == 3.0
-        assert timeout.pool == 4.0
+            assert timeout.connect == 1.0
+            assert timeout.read == 2.0
+            assert timeout.write == 3.0
+            assert timeout.pool == 4.0
+        finally:
+            await client.aclose()
 
-    def test_default_connection_limits(self):
+    @pytest.mark.asyncio
+    async def test_default_connection_limits(self):
         """Test that default connection limits are applied."""
         client = create_http_client(base_url="https://example.com")
-        limits = client._transport._pool._max_connections  # type: ignore[union-attr]
+        try:
+            limits = client._transport._pool._max_connections  # type: ignore[union-attr]
 
-        assert limits == 20
+            assert limits == 20
+        finally:
+            await client.aclose()
 
-    def test_custom_connection_limits(self):
+    @pytest.mark.asyncio
+    async def test_custom_connection_limits(self):
         """Test that custom connection limits are applied."""
         client = create_http_client(
             base_url="https://example.com",
             max_connections=50,
             max_keepalive_connections=25,
         )
-        limits = client._transport._pool._max_connections  # type: ignore[union-attr]
+        try:
+            limits = client._transport._pool._max_connections  # type: ignore[union-attr]
 
-        assert limits == 50
+            assert limits == 50
+        finally:
+            await client.aclose()
 
-    def test_empty_base_url_by_default(self):
+    @pytest.mark.asyncio
+    async def test_empty_base_url_by_default(self):
         """Test that base_url defaults to empty string."""
         client = create_http_client()
-        assert client.base_url == httpx.URL("")
+        try:
+            assert client.base_url == httpx.URL("")
+        finally:
+            await client.aclose()
 
-    def test_custom_base_url(self):
+    @pytest.mark.asyncio
+    async def test_custom_base_url(self):
         """Test that custom base_url is applied."""
         client = create_http_client(base_url="https://api.example.com")
-        assert client.base_url == httpx.URL("https://api.example.com")
+        try:
+            assert client.base_url == httpx.URL("https://api.example.com")
+        finally:
+            await client.aclose()
 
 
 class TestGetFirebaseClient:
-    """Unit tests for get_firebase_client cached getter."""
+    """Unit tests for get_firebase_client singleton getter."""
 
-    def test_returns_async_client(self):
+    @pytest.fixture(autouse=True)
+    def reset_firebase_client(self):
+        """Reset the Firebase client singleton before and after each test."""
+        _close_and_reset_firebase_client()
+        yield
+        _close_and_reset_firebase_client()
+
+    @pytest.mark.asyncio
+    async def test_returns_async_client(self):
         """Test that getter returns an httpx.AsyncClient instance."""
-        # Clear the cache to ensure fresh client
-        get_firebase_client.cache_clear()
-
         client = get_firebase_client()
         assert isinstance(client, httpx.AsyncClient)
 
-    def test_has_firebase_base_url(self):
+    @pytest.mark.asyncio
+    async def test_has_firebase_base_url(self):
         """Test that Firebase client has correct base URL."""
-        get_firebase_client.cache_clear()
-
         client = get_firebase_client()
         assert client.base_url == httpx.URL("https://identitytoolkit.googleapis.com")
 
-    def test_has_high_concurrency_limits(self):
+    @pytest.mark.asyncio
+    async def test_has_high_concurrency_limits(self):
         """Test that Firebase client is configured for high concurrency."""
-        get_firebase_client.cache_clear()
-
         client = get_firebase_client()
         limits = client._transport._pool._max_connections  # type: ignore[union-attr]
 
         assert limits == 100
 
-    def test_is_cached(self):
+    @pytest.mark.asyncio
+    async def test_is_singleton(self):
         """Test that get_firebase_client returns the same instance."""
-        get_firebase_client.cache_clear()
-
         client1 = get_firebase_client()
         client2 = get_firebase_client()
 
         assert client1 is client2
+
+
+class TestCloseFirebaseClient:
+    """Unit tests for close_firebase_client cleanup function."""
+
+    @pytest.fixture(autouse=True)
+    def reset_firebase_client(self):
+        """Reset the Firebase client singleton before and after each test."""
+        _close_and_reset_firebase_client()
+        yield
+        _close_and_reset_firebase_client()
+
+    @pytest.mark.asyncio
+    async def test_closes_client(self):
+        """Test that close_firebase_client closes the client."""
+        client = get_firebase_client()
+        assert not client.is_closed
+
+        await close_firebase_client()
+
+        assert client.is_closed
+
+    @pytest.mark.asyncio
+    async def test_resets_singleton(self):
+        """Test that close_firebase_client resets the module-level variable."""
+        get_firebase_client()
+        assert http_module._firebase_client is not None
+
+        await close_firebase_client()
+
+        assert http_module._firebase_client is None
+
+    @pytest.mark.asyncio
+    async def test_safe_to_call_when_no_client(self):
+        """Test that close_firebase_client is safe to call when no client exists."""
+        assert http_module._firebase_client is None
+
+        # Should not raise
+        await close_firebase_client()
+
+        assert http_module._firebase_client is None
+
+    @pytest.mark.asyncio
+    async def test_creates_new_client_after_close(self):
+        """Test that a new client is created after closing."""
+        client1 = get_firebase_client()
+        await close_firebase_client()
+
+        client2 = get_firebase_client()
+
+        assert client1 is not client2
+        assert not client2.is_closed

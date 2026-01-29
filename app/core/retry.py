@@ -51,6 +51,9 @@ async def with_retry[T](
             exceptions=(httpx.RequestError,),
         )
     """
+    if attempts < 1:
+        raise ValueError("attempts must be at least 1")
+
     last_error: Exception | None = None
 
     for attempt in range(attempts):

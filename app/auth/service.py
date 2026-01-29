@@ -205,13 +205,14 @@ class FirebaseAuthService:
         async def do_request() -> httpx.Response:
             return await client.post(url, json=payload)
 
+        # Always use with_retry for consistent error handling.
+        # When retry=False, attempts=1 means no retries but still catches RequestError.
         try:
-            if retry:
-                response = await with_retry(
-                    do_request, attempts=2, exceptions=(httpx.RequestError,)
-                )
-            else:
-                response = await do_request()
+            response = await with_retry(
+                do_request,
+                attempts=2 if retry else 1,
+                exceptions=(httpx.RequestError,),
+            )
         except httpx.RequestError as e:
             raise ProviderError("Authentication provider unavailable") from e
 
@@ -284,7 +285,9 @@ class FirebaseAuthService:
         if not value:
             return None
         with contextlib.suppress(ValueError):
-            return int(value)
+            parsed = int(value)
+            if parsed >= 0:
+                return parsed
         return None
 
     @staticmethod
@@ -336,7 +339,10 @@ class FirebaseAuthService:
             raise UserDisabledError("User account is disabled")
 
         if error_message == "TOO_MANY_ATTEMPTS_TRY_LATER":
-            raise RateLimitError("Too many attempts, try again later")
+            retry_after = self._parse_retry_after(response.headers.get("Retry-After"))
+            raise RateLimitError(
+                "Too many attempts, try again later", retry_after=retry_after
+            )
 
         # Check PASSWORD_DOES_NOT_MEET_REQUIREMENTS before WEAK_PASSWORD
         # (more specific first)

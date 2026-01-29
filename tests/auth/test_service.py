@@ -257,12 +257,29 @@ class TestParseRetryAfter:
         result = FirebaseAuthService._parse_retry_after("60.5")
         assert result is None
 
+    def test_returns_none_for_negative_value(self):
+        """Test that negative values return None."""
+        result = FirebaseAuthService._parse_retry_after("-1")
+        assert result is None
+
+    def test_returns_none_for_large_negative_value(self):
+        """Test that large negative values return None."""
+        result = FirebaseAuthService._parse_retry_after("-3600")
+        assert result is None
+
     @hypothesis_settings(max_examples=50)
     @given(seconds=st.integers(min_value=0, max_value=86400))
     def test_parses_any_valid_integer(self, seconds):
-        """Property: any valid integer string is parsed correctly."""
+        """Property: any valid non-negative integer string is parsed correctly."""
         result = FirebaseAuthService._parse_retry_after(str(seconds))
         assert result == seconds
+
+    @hypothesis_settings(max_examples=25)
+    @given(seconds=st.integers(max_value=-1))
+    def test_rejects_any_negative_integer(self, seconds):
+        """Property: any negative integer string returns None."""
+        result = FirebaseAuthService._parse_retry_after(str(seconds))
+        assert result is None
 
 
 class TestSanitizeErrorCode:
@@ -412,6 +429,53 @@ class TestIdentityToolkitRetryBehavior:
                 )
 
             assert exc_info.value.retry_after == 60
+
+    @pytest.mark.asyncio
+    async def test_retry_exhaustion_raises_provider_error(self):
+        """Test that ProviderError is raised when all retry attempts fail."""
+        call_count = 0
+
+        async def mock_post(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise httpx.RequestError("Persistent network failure")
+
+        with patch("app.auth.service.get_firebase_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.post = mock_post
+            mock_get_client.return_value = mock_client
+
+            with patch("app.core.retry._calculate_delay", return_value=0.001):
+                with pytest.raises(ProviderError, match="unavailable"):
+                    await self.service._make_identity_toolkit_request(
+                        "v1/test", {"key": "value"}, retry=True
+                    )
+
+            # With retry=True, attempts=2, so should be called exactly 2 times
+            assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_retry_single_attempt_on_request_error(self):
+        """Test that retry=False makes only one attempt before raising."""
+        call_count = 0
+
+        async def mock_post(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise httpx.RequestError("Network failure")
+
+        with patch("app.auth.service.get_firebase_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.post = mock_post
+            mock_get_client.return_value = mock_client
+
+            with pytest.raises(ProviderError, match="unavailable"):
+                await self.service._make_identity_toolkit_request(
+                    "v1/test", {"key": "value"}, retry=False
+                )
+
+            # With retry=False, attempts=1, so should be called exactly 1 time
+            assert call_count == 1
 
 
 class TestPasswordErrorPriority:
