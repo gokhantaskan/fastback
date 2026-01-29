@@ -43,15 +43,23 @@ def test_extract_oob_code_empty_link():
     assert result is None
 
 
-def test_send_password_reset_email():
-    """Test send_password_reset_email() sends email via Resend with correct data."""
+def test_send_password_reset_email_when_resend_enabled():
+    """Test send_password_reset_email() sends email via Resend when enabled."""
     firebase_link = (
         "https://app.firebaseapp.com/__/auth/action?"
         "mode=resetPassword&oobCode=TEST_CODE&apiKey=xyz"
     )
     settings = get_settings()
 
-    with patch("app.core.email.resend.Emails.send") as mock_send:
+    with (
+        patch("app.core.email.resend.Emails.send") as mock_send,
+        patch("app.core.email.get_settings") as mock_get_settings,
+    ):
+        mock_settings = mock_get_settings.return_value
+        mock_settings.enable_resend = True
+        mock_settings.app_domain = settings.app_domain
+        mock_settings.client_url = settings.client_url
+
         send_password_reset_email("user@example.com", firebase_link)
 
         mock_send.assert_called_once()
@@ -61,3 +69,24 @@ def test_send_password_reset_email():
         assert call_args["subject"] == "FastBack - Reset Your Password"
         expected_url = f"{settings.client_url}/auth/reset-password?oobCode=TEST_CODE"
         assert expected_url in call_args["html"]
+
+
+def test_send_password_reset_email_when_resend_disabled():
+    """Test send_password_reset_email() skips sending when Resend is disabled."""
+    firebase_link = (
+        "https://app.firebaseapp.com/__/auth/action?"
+        "mode=resetPassword&oobCode=TEST_CODE&apiKey=xyz"
+    )
+
+    with (
+        patch("app.core.email.resend.Emails.send") as mock_send,
+        patch("app.core.email.get_settings") as mock_get_settings,
+    ):
+        mock_settings = mock_get_settings.return_value
+        mock_settings.enable_resend = False
+        mock_settings.app_domain = "example.com"
+        mock_settings.client_url = "http://localhost:3000"
+
+        send_password_reset_email("user@example.com", firebase_link)
+
+        mock_send.assert_not_called()
