@@ -417,6 +417,150 @@ sequenceDiagram
 | `/users/{user_id}` | GET    | Admin | Get user by ID      |
 | `/users/{user_id}` | PATCH  | Admin | Update user by ID   |
 
+## Request Schemas
+
+### AuthRegister
+
+Request schema for `/auth/register`:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securePassword123",
+  "first_name": "John",
+  "last_name": "Doe"
+}
+```
+
+**Fields:**
+
+- `email` (EmailStr): Valid email address (required)
+- `password` (string): Password with minimum 8 characters (required)
+- `first_name` (string): User's first name, minimum 1 character (required)
+- `last_name` (string): User's last name, minimum 1 character (required)
+
+### EmailPasswordLoginRequest
+
+Request schema for `/auth/login`:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securePassword123"
+}
+```
+
+**Fields:**
+
+- `email` (EmailStr): Valid email address (required)
+- `password` (string): User's password (required)
+
+### CompleteProfileRequest
+
+Request schema for `/auth/complete-profile` (defined in `app/user/schemas.py`):
+
+```json
+{
+  "first_name": "John",
+  "last_name": "Doe"
+}
+```
+
+**Fields:**
+
+- `first_name` (string): User's first name (1-50 characters, required)
+- `last_name` (string): User's last name (1-50 characters, required)
+
+### PasswordResetRequest
+
+Request schema for `/auth/request-password-reset`:
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Fields:**
+
+- `email` (EmailStr): Valid email address (required)
+
+### ConfirmPasswordResetRequest
+
+Request schema for `/auth/confirm-password-reset`:
+
+```json
+{
+  "oob_code": "abc123...",
+  "new_password": "newSecurePassword123"
+}
+```
+
+**Fields:**
+
+- `oob_code` (string): Out-of-band code from password reset email (required)
+- `new_password` (string): New password to set (required)
+
+### ConfirmEmailVerificationRequest
+
+Request schema for `/auth/confirm-verification-email`:
+
+```json
+{
+  "oob_code": "abc123..."
+}
+```
+
+**Fields:**
+
+- `oob_code` (string): Out-of-band code from verification email (required)
+
+### UpdatePasswordRequest
+
+Request schema for `/auth/update-password`:
+
+```json
+{
+  "current_password": "oldPassword123",
+  "new_password": "newSecurePassword123"
+}
+```
+
+**Fields:**
+
+- `current_password` (string): Current password for verification (required)
+- `new_password` (string): New password to set (required)
+
+### RequestEmailChangeRequest
+
+Request schema for `/auth/request-email-change`:
+
+```json
+{
+  "new_email": "newemail@example.com",
+  "current_password": "currentPassword123"
+}
+```
+
+**Fields:**
+
+- `new_email` (EmailStr): New email address (required)
+- `current_password` (string): Current password for re-authentication (required)
+
+### ConfirmEmailChangeRequest
+
+Request schema for `/auth/confirm-email-change`:
+
+```json
+{
+  "oob_code": "abc123..."
+}
+```
+
+**Fields:**
+
+- `oob_code` (string): Out-of-band code from email change verification email (required)
+
 ## Response Schemas
 
 ### UserRead
@@ -467,22 +611,6 @@ Response returned by `/auth/login` when user profile needs completion (status=pe
 - `message` (string): Human-readable message for the client
 - `email` (string): User's email address (for display in profile completion form)
 
-### CompleteProfileRequest
-
-Request schema for `/auth/complete-profile`:
-
-```json
-{
-  "first_name": "John",
-  "last_name": "Doe"
-}
-```
-
-**Fields:**
-
-- `first_name` (string): User's first name (1-50 characters, required)
-- `last_name` (string): User's last name (1-50 characters, required)
-
 ### AuthMessage
 
 Response schema for registration and various confirmation endpoints:
@@ -511,6 +639,16 @@ Response schema for `/auth/confirm-verification-email`:
 {
   "email_verified": true,
   "message": "Email verified successfully"
+}
+```
+
+### PasswordResetResponse
+
+Response schema for `/auth/request-password-reset`:
+
+```json
+{
+  "message": "If an account with that email exists, a password reset link has been sent"
 }
 ```
 
@@ -543,16 +681,79 @@ Note: Users with `status=pending` can access protected routes but should be prom
 
 ## Error Responses
 
-| Status | Meaning                                            |
-| ------ | -------------------------------------------------- |
-| 400    | Bad request (weak password, invalid oobCode, etc.) |
-| 401    | Missing or invalid authentication                  |
-| 403    | User is inactive or disabled                       |
-| 404    | User not found in database                         |
-| 409    | Conflict (duplicate registration)                  |
-| 429    | Too many requests (rate limited)                   |
-| 500    | Internal server error                              |
-| 502    | Authentication provider unavailable                |
+All error responses follow a consistent format:
+
+```json
+{
+  "error_type": "error_type_identifier",
+  "message": "Human-readable error message"
+}
+```
+
+### Error Types by Status Code
+
+| Status | error_type                 | Description                                          |
+| ------ | -------------------------- | ---------------------------------------------------- |
+| 400    | `bad_request`              | General bad request                                  |
+| 400    | `validation_error`         | Request validation failed                            |
+| 400    | `weak_password`            | Password is too weak                                 |
+| 400    | `password_policy_error`    | Password doesn't meet policy requirements (detailed) |
+| 400    | `email_verification_error` | Email verification failed (invalid/expired oobCode)  |
+| 400    | `email_change_error`       | Email change failed (invalid/expired oobCode)        |
+| 401    | `invalid_credentials`      | Invalid email or password                            |
+| 401    | `invalid_token`            | Invalid or expired authentication token              |
+| 401    | `session_cookie_error`     | Session cookie is invalid                            |
+| 401    | `session_expired`          | Session has expired                                  |
+| 403    | `user_disabled`            | User account is disabled in Firebase                 |
+| 403    | `user_inactive`            | User status is inactive in local database            |
+| 403    | `admin_required`           | Admin privileges required                            |
+| 404    | `user_not_found`           | User not found in database                           |
+| 409    | `email_exists`             | Email already registered                             |
+| 429    | `rate_limit_exceeded`      | Too many requests (includes `retry_after` field)     |
+| 500    | `internal_error`           | Internal server error                                |
+| 502    | `provider_error`           | Authentication provider unavailable or error         |
+
+### Password Policy Error
+
+When Firebase password policies are enabled, a detailed error is returned:
+
+```json
+{
+  "error_type": "password_policy_error",
+  "message": "Password does not meet requirements: containsLowercaseCharacter, containsNumericCharacter"
+}
+```
+
+The `requirements` list may include:
+
+- `containsLowercaseCharacter`
+- `containsUppercaseCharacter`
+- `containsNumericCharacter`
+- `containsNonAlphanumericCharacter`
+- `minPasswordLength`
+- `maxPasswordLength`
+
+### Rate Limit Error
+
+Rate limit responses include an optional `retry_after` field (in seconds):
+
+```json
+{
+  "error_type": "rate_limit_exceeded",
+  "message": "Too many attempts, try again later",
+  "retry_after": 60
+}
+```
+
+### Session Expiration Errors
+
+The following Firebase errors are mapped to user-friendly messages:
+
+| Firebase Error                   | User Message                                    |
+| -------------------------------- | ----------------------------------------------- |
+| `CREDENTIAL_TOO_OLD_LOGIN_AGAIN` | Session expired, please login again to continue |
+| `TOKEN_EXPIRED`                  | Session expired, please login again             |
+| `INVALID_ID_TOKEN`               | Session expired, please login again             |
 
 ## Security Considerations
 
@@ -562,3 +763,79 @@ Note: Users with `status=pending` can access protected routes but should be prom
 4. **Session Revocation**: Logout revokes all refresh tokens, signing out all devices
 5. **Rollback on Failure**: Firebase user is deleted if local database creation fails during registration
 6. **Best-effort Emails**: Email sending failures don't fail critical operations (registration, login)
+
+## Developer Reference
+
+### Dependency Injection Types
+
+The auth module provides typed dependencies for FastAPI route handlers (defined in `app/auth/dependencies.py`):
+
+```python
+from app.auth.dependencies import (
+    CurrentUserDep,      # Annotated[User, Depends(get_current_user)]
+    FirebaseAuthDep,     # Annotated[FirebaseAuthService, Depends(get_firebase_auth_service)]
+    AdminUserDep,        # Annotated[User, Depends(get_admin_user)]
+    require_auth,        # Router-level auth dependency
+    require_admin,       # Router-level admin dependency
+)
+```
+
+**Usage Examples:**
+
+```python
+# Endpoint that needs current user
+@router.get("/profile")
+async def get_profile(user: CurrentUserDep):
+    return user
+
+# Admin-only endpoint
+@router.get("/admin/users")
+async def list_users(admin: AdminUserDep):
+    ...
+
+# Router-level authentication (all routes require auth)
+router = APIRouter(dependencies=[Depends(require_auth)])
+
+# Router-level admin requirement
+admin_router = APIRouter(dependencies=[Depends(require_admin)])
+```
+
+### Authentication Priority
+
+When both session cookie and Bearer token are present, the dependency checks in this order:
+
+1. **Session cookie** (priority 1) - Preferred for web apps
+2. **Bearer token** (priority 2) - For API clients and mobile apps
+
+### Firebase Auth Service
+
+The `FirebaseAuthService` class (`app/auth/service.py`) provides all Firebase operations:
+
+| Method                               | Description                                |
+| ------------------------------------ | ------------------------------------------ |
+| `sign_in_with_email_password()`      | Authenticate via Identity Toolkit REST API |
+| `create_session_cookie()`            | Create session cookie from ID token        |
+| `verify_session_cookie()`            | Verify session cookie, returns claims      |
+| `verify_id_token()`                  | Verify ID token, returns claims            |
+| `create_user()`                      | Create new Firebase user                   |
+| `delete_user()`                      | Delete Firebase user (best-effort)         |
+| `revoke_refresh_tokens()`            | Revoke all refresh tokens for user         |
+| `generate_password_reset_link()`     | Generate password reset link               |
+| `generate_email_verification_link()` | Generate email verification link           |
+| `generate_email_change_link()`       | Generate email change verification link    |
+| `confirm_password_reset()`           | Confirm password reset with oobCode        |
+| `confirm_email_verification()`       | Confirm email verification with oobCode    |
+| `confirm_email_change()`             | Confirm email change with oobCode          |
+| `update_password()`                  | Update user password with ID token         |
+| `get_user()`                         | Get Firebase user record by UID            |
+
+### Identity Toolkit Endpoints
+
+The service uses Firebase Identity Toolkit REST API for client-side operations:
+
+| Operation             | Endpoint                         |
+| --------------------- | -------------------------------- |
+| Sign in with password | `v1/accounts:signInWithPassword` |
+| Send OOB code         | `v1/accounts:sendOobCode`        |
+| Update account        | `v1/accounts:update`             |
+| Reset password        | `v1/accounts:resetPassword`      |

@@ -28,10 +28,14 @@ def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         logger.error("AppException: %s - %s", exc.error_type, exc.message, extra=extra)
     else:
         logger.info("AppException: %s - %s", exc.error_type, exc.message, extra=extra)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"type": exc.error_type, "message": exc.message},
-    )
+
+    content: dict[str, str | int] = {"type": exc.error_type, "message": exc.message}
+
+    # Include retry_after for rate limit errors
+    if hasattr(exc, "retry_after") and exc.retry_after is not None:
+        content["retry_after"] = exc.retry_after
+
+    return JSONResponse(status_code=exc.status_code, content=content)
 
 
 def http_exception_handler(
