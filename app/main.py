@@ -27,7 +27,14 @@ async def lifespan(_: FastAPI):
     # Cleanup HTTP clients
     from app.core.http import close_firebase_client
 
-    await close_firebase_client()
+    try:
+        await close_firebase_client()
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Failed to close Firebase HTTP client during shutdown", exc_info=True
+        )
 
 
 app = FastAPI(title="FastBack", version="0.1.0", lifespan=lifespan)
