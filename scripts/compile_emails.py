@@ -24,9 +24,9 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape  # noqa: E40
 
 # Template configuration: maps template names to their Jinja2 variables
 TEMPLATES = {
-    "password-reset.html": ["reset_url"],
-    "email-verification.html": ["verification_url"],
-    "email-change-verification.html": ["new_email", "verification_url"],
+    "password-reset.j2": ["reset_url"],
+    "email-verification.j2": ["verification_url"],
+    "email-change-verification.j2": ["new_email", "verification_url"],
 }
 
 # URL-safe marker that preserves quotes during minification
@@ -75,10 +75,11 @@ def compile_template(
         # Replace any remaining occurrences (text content)
         html_content = html_content.replace(marker, jinja_var)
 
-    # Save compiled template
-    output_path = output_dir / template_name
+    # Save compiled template with .html extension
+    output_name = Path(template_name).stem + ".html"
+    output_path = output_dir / output_name
     output_path.write_text(html_content, encoding="utf-8")
-    print(f"  ✓ {template_name}")
+    print(f"  ✓ {template_name} -> {output_name}")
 
 
 def main() -> None:
@@ -92,7 +93,7 @@ def main() -> None:
     # Setup Jinja2 environment
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
-        autoescape=select_autoescape(["html", "xml"]),
+        autoescape=select_autoescape(["html", "xml", "j2"]),
     )
 
     print("Compiling email templates...")
