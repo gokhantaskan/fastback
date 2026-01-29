@@ -445,11 +445,13 @@ class TestIdentityToolkitRetryBehavior:
             mock_client.post = mock_post
             mock_get_client.return_value = mock_client
 
-            with patch("app.core.retry._calculate_delay", return_value=0.001):
-                with pytest.raises(ProviderError, match="unavailable"):
-                    await self.service._make_identity_toolkit_request(
-                        "v1/test", {"key": "value"}, retry=True
-                    )
+            with (
+                patch("app.core.retry._calculate_delay", return_value=0.001),
+                pytest.raises(ProviderError, match="unavailable"),
+            ):
+                await self.service._make_identity_toolkit_request(
+                    "v1/test", {"key": "value"}, retry=True
+                )
 
             # With retry=True, attempts=2, so should be called exactly 2 times
             assert call_count == 2
