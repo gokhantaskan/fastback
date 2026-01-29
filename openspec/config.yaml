@@ -1,0 +1,23 @@
+schema: spec-driven
+
+context: |
+  Stack: FastAPI + SQLModel + Pydantic, PostgreSQL, Firebase Auth, Resend email
+
+  Structure: Domain-based (app/<domain>/{router,schemas,models,service,exceptions}.py)
+  - New domains need router registered in app/router.py
+  - Shared utilities in app/core/, DB in app/db/
+
+  Critical async rules:
+  - async def + await for async I/O
+  - plain def (not async) for sync I/O—runs in threadpool automatically
+  - NEVER block event loop with sync calls in async routes
+
+  DB conventions: singular table names, snake_case, _at for datetime, _date for date
+  Schema changes require Alembic migration
+
+rules:
+  tasks:
+    - Include migration task if models change
+    - Include test task for new endpoints
+  design:
+    - Reference existing patterns in codebase when applicable

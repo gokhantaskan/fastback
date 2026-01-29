@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     cors_origins: str = Field(default="*", alias="CORS_ORIGINS")
 
     # Email (Resend)
+    enable_resend: bool = Field(default=True, alias="ENABLE_RESEND")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
     app_domain: str = Field(default="resend.dev", alias="APP_DOMAIN")
     client_url: str = Field(default="http://localhost:3000", alias="CLIENT_URL")

@@ -66,6 +66,9 @@ def send_password_reset_email(to_email: str, firebase_reset_link: str) -> None:
     print(f"Reset URL: {reset_url}")
     print("================================================")
 
+    if not settings.enable_resend:
+        return
+
     html_content = _render_template("password-reset.html", reset_url=reset_url)
 
     resend.Emails.send(
@@ -101,6 +104,9 @@ def send_email_verification_email(
     print(f"OOB Code: {oob_code}")
     print(f"Verification URL: {verification_url}")
     print("================================================")
+
+    if not settings.enable_resend:
+        return
 
     html_content = _render_template(
         "email-verification.html", verification_url=verification_url
@@ -142,6 +148,9 @@ def send_email_change_verification_email(
     print(f"OOB Code: {oob_code}")
     print(f"Email Change URL: {verification_url}")
     print("================================================")
+
+    if not settings.enable_resend:
+        return
 
     html_content = _render_template(
         "email-change-verification.html",
