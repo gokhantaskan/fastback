@@ -290,6 +290,26 @@ class FirebaseAuthService:
                 return parsed
         return None
 
+    def _raise_rate_limit_error(
+        self, response: httpx.Response, cause: BaseException | None = None
+    ) -> None:
+        """Raise RateLimitError with Retry-After header parsed from response.
+
+        Args:
+            response: HTTP response containing potential Retry-After header
+            cause: Optional exception to chain with 'from'
+
+        Raises:
+            RateLimitError: Always raises with parsed retry_after value
+        """
+        retry_after = self._parse_retry_after(response.headers.get("Retry-After"))
+        error = RateLimitError(
+            "Too many attempts, try again later", retry_after=retry_after
+        )
+        if cause:
+            raise error from cause
+        raise error
+
     @staticmethod
     def _sanitize_error_code(error_message: str) -> str:
         """Extract a safe, non-sensitive error code for logging."""
@@ -307,12 +327,7 @@ class FirebaseAuthService:
             error_message = error_data.get("error", {}).get("message", "Unknown error")
         except ValueError as e:
             if response.status_code == 429:
-                retry_after = self._parse_retry_after(
-                    response.headers.get("Retry-After")
-                )
-                raise RateLimitError(
-                    "Too many attempts, try again later", retry_after=retry_after
-                ) from e
+                self._raise_rate_limit_error(response, cause=e)
             raise ProviderError(
                 "Authentication provider returned an invalid response"
             ) from e
@@ -327,10 +342,7 @@ class FirebaseAuthService:
 
         # Handle HTTP 429 explicitly
         if response.status_code == 429:
-            retry_after = self._parse_retry_after(response.headers.get("Retry-After"))
-            raise RateLimitError(
-                "Too many attempts, try again later", retry_after=retry_after
-            )
+            self._raise_rate_limit_error(response)
 
         if error_message in _INVALID_CREDENTIALS_MESSAGES:
             raise InvalidCredentialsError("Invalid email or password")
@@ -339,10 +351,7 @@ class FirebaseAuthService:
             raise UserDisabledError("User account is disabled")
 
         if error_message == "TOO_MANY_ATTEMPTS_TRY_LATER":
-            retry_after = self._parse_retry_after(response.headers.get("Retry-After"))
-            raise RateLimitError(
-                "Too many attempts, try again later", retry_after=retry_after
-            )
+            self._raise_rate_limit_error(response)
 
         # Check PASSWORD_DOES_NOT_MEET_REQUIREMENTS before WEAK_PASSWORD
         # (more specific first)
