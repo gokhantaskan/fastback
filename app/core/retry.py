@@ -65,4 +65,5 @@ async def with_retry[T](
                 delay = _calculate_delay(attempt, base_delay)
                 await asyncio.sleep(delay)
 
-    raise last_error  # type: ignore[misc]
+    assert last_error is not None
+    raise last_error

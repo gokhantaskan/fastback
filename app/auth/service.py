@@ -210,6 +210,7 @@ class FirebaseAuthService:
         try:
             response = await with_retry(
                 do_request,
+                # 2 attempts = 1 initial try + 1 retry on failure
                 attempts=2 if retry else 1,
                 exceptions=(httpx.RequestError,),
             )
